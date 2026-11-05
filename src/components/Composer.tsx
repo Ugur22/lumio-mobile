@@ -91,6 +91,18 @@ export function Composer({ streaming, onSend, onStop, onHeight, canAttach, provi
         style={{ paddingBottom: Math.max(insets.bottom, 8) }}
         onLayout={(e) => onHeight(e.nativeEvent.layout.height)}
       >
+        {canIllustrate && illustrate ? (
+          <Pressable
+            onPress={() => setIllustrate(false)}
+            hitSlop={6}
+            accessibilityLabel="Turn off illustrate"
+            className="mb-2 flex-row items-center gap-1.5 self-start rounded-full bg-bubble py-1 pl-2.5 pr-2"
+          >
+            <Sparkles size={14} color={palette.accent} />
+            <Text className="text-[13px] text-text">Illustrate on</Text>
+            <X size={14} color={palette.muted} />
+          </Pressable>
+        ) : null}
         {attachments.length > 0 || preparing > 0 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-2" contentContainerClassName="gap-2 pt-2">
             {attachments.map((a) => (
@@ -128,10 +140,10 @@ export function Composer({ streaming, onSend, onStop, onHeight, canAttach, provi
               hitSlop={6}
               accessibilityLabel={illustrate ? "Turn off illustrate" : "Turn on illustrate"}
               accessibilityState={{ selected: illustrate }}
-              className={`h-10 items-center justify-center rounded-full ${illustrate ? "flex-row gap-1.5 bg-accent px-3" : "w-10"}`}
+              // Always the same size: the state shows in the fill and in the chip above, so the input keeps its room.
+              className={`h-10 w-10 items-center justify-center rounded-full ${illustrate ? "bg-accent" : ""}`}
             >
               <Sparkles size={20} color={illustrate ? "#fdfbf6" : palette.text} />
-              {illustrate ? <Text className="text-[14px] font-medium text-on-accent">Illustrate</Text> : null}
             </Pressable>
           ) : null}
           <TextInput

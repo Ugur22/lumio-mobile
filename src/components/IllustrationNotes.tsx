@@ -2,16 +2,15 @@ import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import type { IllustrationFailure } from "@/api/types";
+import { describeIllustrationFailure } from "@/lib/illustrationError";
 
 function Note({ failure }: { failure: IllustrationFailure }) {
   const [showPrompt, setShowPrompt] = useState(false);
-  const what = `Couldn't generate an image${failure.status === null ? "" : ` (${failure.status})`}`;
+  const { headline, providerSays } = describeIllustrationFailure(failure);
   return (
     <View className="border-l-2 border-warn-bar pl-3">
-      <Text className="text-[13px] leading-5 text-muted">
-        {what}
-        {failure.detail ? `: ${failure.detail}` : ""}
-      </Text>
+      <Text className="text-[13px] leading-5 text-muted">{headline}</Text>
+      {providerSays ? <Text className="mt-0.5 text-[13px] leading-5 text-muted">Provider says: {providerSays}</Text> : null}
       {failure.prompt ? (
         <Pressable onPress={() => setShowPrompt((v) => !v)} hitSlop={6}>
           <Text className="text-[13px] text-accent">{showPrompt ? "Hide prompt" : "Prompt"}</Text>

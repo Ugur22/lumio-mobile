@@ -194,8 +194,9 @@ export default function Chat() {
               scrollEventThrottle={16}
               keyboardDismissMode="interactive"
               keyboardShouldPersistTaps="handled"
-              // No autoscrollToBottomThreshold: the list must not follow the reply by itself.
-              maintainVisibleContentPosition={{ startRenderingFromBottom: true }}
+              // A short chat starts at the top, like ChatGPT; a long one is scrolled to its end when it opens (effect above).
+              // No autoscrollToBottomThreshold either: the list must not follow the reply by itself.
+              maintainVisibleContentPosition={{}}
             />
           </BlankSpaceContext.Provider>
         )}
