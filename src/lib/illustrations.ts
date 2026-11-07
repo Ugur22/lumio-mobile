@@ -10,7 +10,7 @@ export type Segment =
   | { kind: "image"; illustration: Illustration }
   | { kind: "pending" };
 
-const MARKER = /\[\[(?:image:[\s\S]*?|img:([0-9a-f]{32}))\]\]/g;
+const MARKER = /\[\[(?:image:([\s\S]*?)|img:([0-9a-f]{32}))\]\]/g;
 const OPENERS = ["[[image:", "[[img:"];
 
 // While streaming, a directive may be cut mid-way ("[[ima"); drop that tail so it never flashes as text.
@@ -23,8 +23,39 @@ function withoutPartialTail(text: string): string {
   return text.endsWith("[") && !text.endsWith("[[") ? text.slice(0, -1) : text;
 }
 
+// Pass one pairs directives with arrived pictures by prompt (the server trims it and caps its length); pass two gives
+// whatever is left to the remaining directives in order. Returns directive index -> picture.
+function assignArrived(source: string, arrived: readonly Illustration[]): Map<number, Illustration> {
+  const wants = [...source.matchAll(MARKER)].filter((m) => m[2] === undefined).map((m) => (m[1] ?? "").trim());
+  const out = new Map<number, Illustration>();
+  const used = new Set<number>();
+  const claimWith = (matches: (want: string, prompt: string) => boolean) =>
+    wants.forEach((want, d) => {
+      if (out.has(d) || want === "") return;
+      const at = arrived.findIndex((a, i) => !used.has(i) && a.prompt !== null && a.prompt.trim() !== "" && matches(want, a.prompt.trim()));
+      if (at >= 0) {
+        used.add(at);
+        out.set(d, arrived[at] as Illustration);
+      }
+    });
+  // Exact first, so "a cat" cannot take the picture of "a cat on a mat" just because it comes first.
+  claimWith((want, prompt) => want === prompt);
+  claimWith((want, prompt) => want.startsWith(prompt));
+  wants.forEach((_, d) => {
+    if (out.has(d)) return;
+    const at = arrived.findIndex((_a, i) => !used.has(i));
+    if (at >= 0) {
+      used.add(at);
+      out.set(d, arrived[at] as Illustration);
+    }
+  });
+  return out;
+}
+
 // Only ids in `known` (that message's own images) become pictures, so reply text can't point at other files.
-export function splitReply(content: string, known: Illustration[], streaming: boolean): Segment[] {
+// `arrived` are pictures whose `image` event came in before the reply was saved. Pictures are generated in parallel, so
+// they can finish out of order: a directive takes the arrived picture with its own prompt, else the next unused one.
+export function splitReply(content: string, known: Illustration[], streaming: boolean, arrived: readonly Illustration[] = []): Segment[] {
   const byId = new Map(known.map((i) => [i.id, i]));
   const source = streaming ? withoutPartialTail(content) : content;
   const out: Segment[] = [];
@@ -32,14 +63,20 @@ export function splitReply(content: string, known: Illustration[], streaming: bo
     if (text.trim() !== "") out.push({ kind: "text", text });
   };
 
+  const assigned = streaming ? assignArrived(source, arrived) : new Map<number, Illustration>();
+  let directive = 0;
+
   let last = 0;
   for (const m of source.matchAll(MARKER)) {
     pushText(source.slice(last, m.index));
     last = m.index + m[0].length;
-    const id = m[1];
+    const id = m[2];
     if (id === undefined) {
       // A directive still in the text: the picture is on its way while streaming, stale otherwise.
-      if (streaming) out.push({ kind: "pending" });
+      if (streaming) {
+        const live = assigned.get(directive++);
+        out.push(live ? { kind: "image", illustration: live } : { kind: "pending" });
+      }
       continue;
     }
     const illustration = byId.get(id);

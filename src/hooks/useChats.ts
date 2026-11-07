@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/api/client";
-import type { Chat, ChatModelBody, ContextInfo, IllustrationFailure, ImageUpload, SourceRef } from "@/api/types";
+import { ApiError, HandlerError, ReplyFailed, api, newCursor, type Handlers, type StreamCursor } from "@/api/client";
+import { runWithResume, sleepMs } from "@/lib/resume";
+import { trialFailure } from "@/lib/trial";
+import { profilesKey } from "./useProfiles";
+import { trialKey } from "./useTrial";
+import type { Chat, ChatModelBody, ContextInfo, DoneChat, IllustrationFailure, ImageUpload, SourceRef } from "@/api/types";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (id: string) => ["chat", id] as const;
@@ -75,7 +79,7 @@ export function useDeleteChat() {
 }
 
 // `context` comes from the `done` event; the stop path has none and refetches instead.
-export type SentChat = Chat & { context?: ContextInfo };
+export type SentChat = Chat & { context?: ContextInfo; trial?: { remaining: number } };
 
 interface SendVars {
   chatId: string | null;
@@ -88,6 +92,50 @@ interface SendVars {
   onDelta: (text: string) => void;
   onSources: (sources: SourceRef[], notes: string[], query: string | null) => void;
   onIllustrationFailed: (failure: IllustrationFailure) => void;
+  onImage: (image: { id: string; prompt: string }) => void;
+  // The chat the reply streams into, once it exists (a first message creates it inside the mutation).
+  onChatId?: (id: string) => void;
+  // True once the user pressed Stop: the server then ends the stream with a terminal frame, which is not a failure.
+  stopped?: () => boolean;
+}
+
+// The user pressed Stop and nothing had streamed yet, so there is no partial to show. Not a failure to display.
+export class ReplyStopped extends Error {
+  constructor() {
+    super("Stopped");
+    this.name = "ReplyStopped";
+  }
+}
+
+// The reply is gone from the server and not in the chat: nothing was saved, and the user's text is kept to resend.
+export class ReplyLost extends Error {
+  constructor(sent: boolean) {
+    super(sent ? "That reply was lost. Try again." : "Could not reach the server. Try again.");
+    this.name = "ReplyLost";
+  }
+}
+
+// A break worth reconnecting for: the network, a cut stream, or a 5xx/429/408. Not an `error` event, a handler that
+// threw, or a refusal (401/404/422...). A refusal of the POST itself (no job yet) is also final.
+export function resumable(err: unknown, cursor: StreamCursor, stopped: boolean): boolean {
+  if (stopped || err instanceof ReplyFailed || err instanceof HandlerError || err instanceof ReplyLost) return false;
+  if (err instanceof ApiError) return cursor.started && (err.status >= 500 || err.status === 429 || err.status === 408);
+  return true;
+}
+
+// Before the first byte the server may still be preparing the reply (web search...), so no headers have come back and
+// the job may not be registered yet. Never re-POST; ask for the job until it appears or the window ends (null).
+export const PROBE_WINDOW_MS = 20_000;
+export const PROBE_EVERY_MS = 1_000;
+export async function probeForJob(id: string, cursor: StreamCursor, handlers: Handlers): Promise<DoneChat | null> {
+  const until = Date.now() + PROBE_WINDOW_MS;
+  for (;;) {
+    const done = await api.resumeMessage(id, cursor.lastId, handlers);
+    if (done) return done;
+    if (Date.now() >= until) return null;
+    await sleepMs(PROBE_EVERY_MS, handlers.signal);
+    if (handlers.signal.aborted) throw new DOMException("Aborted", "AbortError");
+  }
 }
 
 // After Stop the server saves the partial reply on its own schedule, so poll briefly for it.
@@ -104,8 +152,9 @@ async function savedAfterStop(id: string, knownCount: number): Promise<Chat> {
 export function useSendMessage() {
   const qc = useQueryClient();
   return useMutation<SentChat, Error, SendVars>({
-    mutationFn: async ({ chatId, content, images, web, illustrate, model, signal, onDelta, onSources, onIllustrationFailed }) => {
+    mutationFn: async ({ chatId, content, images, web, illustrate, model, signal, onDelta, onSources, onIllustrationFailed, onImage, onChatId, stopped }) => {
       const id = chatId ?? (await api.createChat()).id;
+      onChatId?.(id);
       // Chats are created before the first message, so the pick is stored with its own call.
       if (chatId === null && model) {
         try {
@@ -117,33 +166,67 @@ export function useSendMessage() {
       }
       const knownCount = chatId === null ? 0 : (qc.getQueryData<Chat>(chatKey(id))?.messages.length ?? 0);
       let received = false;
+      const cursor = newCursor();
+      const handlers = {
+        cursor,
+        onSources,
+        onIllustrationFailed,
+        onImage,
+        onDelta: (text: string) => {
+          received = true;
+          onDelta(text);
+        },
+      };
       try {
-        return await api.sendMessage(id, content, {
-          images,
-          web,
-          illustrate,
+        // A break without `done` is not a failure: the reply keeps running on the server, so reconnect after the last
+        // event seen. Only a 204 (nothing buffered any more) means the reply is already saved.
+        const done = await runWithResume({
           signal,
-          onSources,
-          onIllustrationFailed,
-          onDelta: (text) => {
-            received = true;
-            onDelta(text);
+          progress: () => cursor.lastId,
+          retryable: (err) => resumable(err, cursor, stopped?.() ?? false),
+          attempt: (n, conn) => {
+            if (n === 0) return api.sendMessage(id, content, { ...handlers, images, web, illustrate, signal: conn });
+            if (!cursor.started) return probeForJob(id, cursor, { ...handlers, signal: conn });
+            return api.resumeMessage(id, cursor.lastId, { ...handlers, signal: conn });
           },
         });
+        if (done) return done;
+        void qc.invalidateQueries({ queryKey: trialKey });
+        // No job on the server. Believe it only if the turn really is in the chat (a restart or an expired job leaves
+        // nothing behind, and a stale answer must not look like success).
+        const saved = await api.getChat(id);
+        if (saved.messages.length < knownCount + 2) throw new ReplyLost(cursor.started);
+        return saved;
       } catch (err) {
         // Stopped before any text arrived: nothing was saved, same as a failure.
-        if (signal.aborted && received) return await savedAfterStop(id, knownCount);
-        // Drop the chat we just created so a failed first send leaves no empty file.
-        if (chatId === null) await api.deleteChat(id).catch(() => undefined);
-        throw err;
+        const stop = signal.aborted || (stopped?.() ?? false);
+        if (stop && received) return await savedAfterStop(id, knownCount);
+        // Drop the chat we just created only when nothing can still be written into it: the server refused the message,
+        // or the reply failed or is gone. A lost connection or a Stop leaves it, since the job may still be saving.
+        const refused = !cursor.started && err instanceof ApiError;
+        if (chatId === null && (refused || (!stop && (err instanceof ReplyFailed || err instanceof ReplyLost)))) {
+          await api.deleteChat(id).catch(() => undefined);
+        }
+        throw stop ? new ReplyStopped() : err;
       }
     },
-    onSuccess: ({ context, ...chat }) => {
+    onSuccess: ({ context, trial, ...chat }) => {
+      // A reply the trial paid for moves the count; the last one also ends the trial, which changes what the providers sheet allows.
+      if (trial) {
+        void qc.invalidateQueries({ queryKey: trialKey });
+        void qc.invalidateQueries({ queryKey: profilesKey });
+      }
       qc.setQueryData(chatKey(chat.id), chat);
       if (context) qc.setQueryData(contextKey(chat.id), context);
       else void qc.invalidateQueries({ queryKey: contextKey(chat.id) });
       return qc.invalidateQueries({ queryKey: chatsKey });
     },
-    onError: () => qc.invalidateQueries({ queryKey: chatsKey }),
+    onError: (err) => {
+      if (trialFailure(err)?.kind === "ended") {
+        void qc.invalidateQueries({ queryKey: trialKey });
+        void qc.invalidateQueries({ queryKey: profilesKey });
+      }
+      return qc.invalidateQueries({ queryKey: chatsKey });
+    },
   });
 }

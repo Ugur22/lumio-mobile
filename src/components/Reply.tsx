@@ -1,21 +1,24 @@
 import { MarkdownStream, type RenderRules } from "@ronradtke/react-native-markdown-display";
 import { createMarkdownIt } from "@ronradtke/react-native-markdown-display";
+import { Sparkles } from "lucide-react-native";
 import { memo, useEffect, useMemo, useState } from "react";
-import { Animated, Text, View, useColorScheme, useWindowDimensions } from "react-native";
+import { AccessibilityInfo, Animated, Text, View, useColorScheme, useWindowDimensions } from "react-native";
 import RenderHTML from "react-native-render-html";
 
 import { imageSource } from "@/api/client";
 import type { ImageRef } from "@/api/types";
-import { splitReply } from "@/lib/illustrations";
+import { splitReply, type Illustration } from "@/lib/illustrations";
 import { markdownStyles } from "@/lib/markdownStyles";
 import { lumioMarkup } from "@/lib/markup/plugin";
 import { prepare, type Segment } from "@/lib/markup/prepare";
 import { sanitizeBlockHtml } from "@/lib/markup/sanitizeHtml";
 import { type Palette, usePalette } from "@/lib/theme";
+import { useStream } from "@/store/stream";
 
 import { AttachedImage } from "./AttachedImage";
 
 const NO_IMAGES: string[] = [];
+const NO_LIVE: Illustration[] = [];
 const markdownIt = createMarkdownIt({ plugins: [lumioMarkup] });
 
 const rules: RenderRules = {
@@ -141,12 +144,38 @@ const Text_ = memo(function TextParts({ text, streaming }: { text: string; strea
   );
 });
 
-// A picture the model asked for that has not been generated yet.
+// A picture the model asked for that has not been generated yet. Same size as AttachedImage so nothing jumps.
 function Illustrating({ palette }: { palette: Palette }) {
+  const [pulse] = useState(() => new Animated.Value(0.5));
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduceMotion);
+    return () => sub.remove();
+  }, []);
+  useEffect(() => {
+    if (reduceMotion) {
+      pulse.setValue(0.8);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.5, duration: 900, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse, reduceMotion]);
   return (
-    <View className="my-3 h-40 items-center justify-center rounded-2xl border border-border bg-bubble">
+    <Animated.View
+      accessibilityLabel="Illustrating"
+      className="my-3 items-center justify-center gap-2 rounded-xl border border-border bg-bubble"
+      style={{ width: 260, height: 260, opacity: pulse }}
+    >
+      <Sparkles size={28} color={palette.muted} />
       <Text style={{ color: palette.muted, fontSize: 14 }}>Illustrating…</Text>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -161,7 +190,14 @@ interface ReplyProps {
 // An assistant reply: Markdown, the model's styled blocks, callouts and illustrations, in order.
 export const Reply = memo(function Reply({ text, streaming, chatId, images }: ReplyProps) {
   const palette = usePalette();
-  const parts = useMemo(() => splitReply(text, images.map((i) => ({ id: i.id, prompt: i.prompt })), streaming), [text, images, streaming]);
+  // Pictures stored while the reply is still streaming; only the turn in flight has any.
+  const live = useStream((s) => (streaming ? s.images : NO_LIVE));
+  const createdChatId = useStream((s) => s.createdChatId);
+  const imageChat = chatId ?? (streaming ? createdChatId : null);
+  const parts = useMemo(
+    () => splitReply(text, images.map((i) => ({ id: i.id, prompt: i.prompt })), streaming, live),
+    [text, images, streaming, live],
+  );
 
   if (parts.length === 0) return <Text_ text="" streaming={streaming} />;
   const lastText = parts.map((p) => p.kind).lastIndexOf("text");
@@ -172,8 +208,8 @@ export const Reply = memo(function Reply({ text, streaming, chatId, images }: Re
         if (part.kind === "pending") return <Illustrating key={i} palette={palette} />;
         return (
           <View key={i} className="my-3 items-start">
-            {chatId ? (
-              <AttachedImage source={imageSource(chatId, part.illustration.id)} label={part.illustration.prompt ?? "Generated image"} size={260} />
+            {imageChat ? (
+              <AttachedImage source={imageSource(imageChat, part.illustration.id)} label={part.illustration.prompt ?? "Generated image"} size={260} />
             ) : null}
           </View>
         );

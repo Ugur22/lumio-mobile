@@ -34,7 +34,7 @@ export type ContextParts = Schema<"ContextParts">;
 export type ContextInfo = Schema<"ContextInfo">;
 
 // The chat as sent in the SSE `done` event.
-export type DoneChat = Chat & { usage: Schema<"Usage"> | null; context: ContextInfo };
+export type DoneChat = Chat & { usage: Schema<"Usage"> | null; context: ContextInfo; trial?: { remaining: number } };
 
 export type Profile = Schema<"ProfileView">;
 // Where the server keeps saved keys: the OS keychain locally, a file on a deployed host.
@@ -53,3 +53,10 @@ export type LoginBody = Schema<"LoginBody">;
 export type RegisterBody = Schema<"RegisterBody">;
 export type TokenLogin = Schema<"TokenLogin">;
 export type PasswordChange = Schema<"PasswordChange">;
+
+export type TrialStatus = Schema<"TrialStatus">;
+// POST /api/auth/oauth/exchange: the one-time code from the sign-in redirect and the PKCE verifier it was started with.
+export interface OAuthExchangeBody {
+  code: string;
+  verifier: string;
+}

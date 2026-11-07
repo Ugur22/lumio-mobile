@@ -19,16 +19,22 @@ interface Props {
   providerName: string | null;
   // Whether the provider has an image model, which is what makes the Illustrate toggle appear.
   canIllustrate: boolean;
+  // The trial's provider: no photos, no illustrations.
+  managed: boolean;
+  // The trial chip text ("3 of 5 free messages left"), and whether sending would only bounce off a 402.
+  trialText: string | null;
+  blocked: boolean;
+  onOpenProviders: () => void;
 }
 
-export function Composer({ streaming, onSend, onStop, onHeight, canAttach, providerName, canIllustrate }: Props) {
+export function Composer({ streaming, onSend, onStop, onHeight, canAttach, providerName, canIllustrate, managed, trialText, blocked, onOpenProviders }: Props) {
   const insets = useSafeAreaInsets();
   const palette = usePalette();
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [preparing, setPreparing] = useState(0);
   const [illustrate, setIllustrate] = useState(false);
-  const canSend = (text.trim().length > 0 || attachments.length > 0) && preparing === 0;
+  const canSend = (text.trim().length > 0 || attachments.length > 0) && preparing === 0 && !blocked;
 
   const submit = () => {
     if (!canSend) return;
@@ -91,6 +97,16 @@ export function Composer({ streaming, onSend, onStop, onHeight, canAttach, provi
         style={{ paddingBottom: Math.max(insets.bottom, 8) }}
         onLayout={(e) => onHeight(e.nativeEvent.layout.height)}
       >
+        {trialText ? (
+          <Pressable
+            onPress={onOpenProviders}
+            accessibilityLabel={`${trialText}. Open providers`}
+            className="mb-2 flex-row items-center self-start rounded-full bg-bubble px-2.5 py-1"
+          >
+            <Text className={`text-[13px] ${blocked ? "text-warn-bar" : "text-muted"}`}>{trialText}</Text>
+            {blocked ? <Text className="text-[13px] text-accent">{" · Providers"}</Text> : null}
+          </Pressable>
+        ) : null}
         {canIllustrate && illustrate ? (
           <Pressable
             onPress={() => setIllustrate(false)}
@@ -126,6 +142,7 @@ export function Composer({ streaming, onSend, onStop, onHeight, canAttach, provi
           </ScrollView>
         ) : null}
         <View className="flex-row items-end gap-1 rounded-3xl border border-border bg-surface py-1.5 pl-1.5 pr-1.5">
+          {managed ? null : (
           <Pressable
             onPress={choose}
             hitSlop={6}
@@ -134,6 +151,7 @@ export function Composer({ streaming, onSend, onStop, onHeight, canAttach, provi
           >
             <ImagePlus size={22} color={canAttach ? palette.text : palette.muted} />
           </Pressable>
+          )}
           {canIllustrate ? (
             <Pressable
               onPress={() => setIllustrate((on) => !on)}
@@ -149,10 +167,12 @@ export function Composer({ streaming, onSend, onStop, onHeight, canAttach, provi
           <TextInput
             value={text}
             onChangeText={setText}
-            placeholder="Message"
+            placeholder={blocked ? "Free trial ended" : "Message"}
             multiline
             // 16px or more stops iOS from zooming on focus; the cap keeps a long draft from eating the screen.
-            className="max-h-40 flex-1 py-2 text-[17px] text-text"
+            // 40px min height matches the buttons; 22px line + 9px padding centres one line in it. iOS ignores line height
+            // for the first line unless it is set explicitly, which is what sat the text above the icons.
+            className="max-h-40 min-h-[40px] flex-1 py-[9px] text-[17px] leading-[22px] text-text"
             placeholderTextColor="#8a8070"
           />
           <Pressable

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, api, configureApi, setUnauthorizedHandler } from "./client";
+import { ApiError, ReplyFailed, StreamInterrupted, api, configureApi, newCursor, setUnauthorizedHandler } from "./client";
 
 // vi.mock is hoisted above the imports, and the factory runs lazily, so the spy can be declared after them.
 const streamingFetch = vi.fn();
@@ -9,8 +9,10 @@ vi.mock("expo/fetch", () => ({ fetch: (...args: unknown[]) => streamingFetch(...
 const json = (body: unknown, init: ResponseInit = {}) =>
   new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" }, ...init });
 
-function sse(...events: [string, unknown][]): Response {
-  const text = events.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join("");
+function sse(...events: [string, unknown, number?][]): Response {
+  const text = events
+    .map(([event, data, id]) => `${id === undefined ? "" : `id: ${id}\n`}event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+    .join("");
   return new Response(text, { headers: { "Content-Type": "text/event-stream" } });
 }
 
@@ -76,6 +78,8 @@ describe("sendMessage", () => {
     onDelta: vi.fn(),
     onSources: vi.fn(),
     onIllustrationFailed: vi.fn(),
+    onImage: vi.fn(),
+    cursor: newCursor(),
   });
 
   it("streams deltas and resolves with the saved chat", async () => {
@@ -91,8 +95,91 @@ describe("sendMessage", () => {
 
   it("fails when the server sends an error event or the stream ends early", async () => {
     streamingFetch.mockResolvedValueOnce(sse(["error", { detail: "provider down" }]));
-    await expect(api.sendMessage("c1", "hi", options())).rejects.toThrow("provider down");
+    await expect(api.sendMessage("c1", "hi", options())).rejects.toBeInstanceOf(ReplyFailed);
     streamingFetch.mockResolvedValueOnce(sse(["delta", { text: "x" }]));
-    await expect(api.sendMessage("c1", "hi", options())).rejects.toThrow("Connection closed");
+    await expect(api.sendMessage("c1", "hi", options())).rejects.toBeInstanceOf(StreamInterrupted);
+  });
+});
+
+describe("event ids, images and resume", () => {
+  const options = () => ({
+    images: [],
+    web: false,
+    illustrate: false,
+    signal: new AbortController().signal,
+    onDelta: vi.fn(),
+    onSources: vi.fn(),
+    onIllustrationFailed: vi.fn(),
+    onImage: vi.fn(),
+    cursor: newCursor(),
+  });
+
+  it("tracks the last event id, hands images to onImage and marks the reply started", async () => {
+    streamingFetch.mockResolvedValue(
+      sse(["delta", { text: "a" }, 0], ["image", { id: "0123456789abcdef0123456789abcdef", media_type: "image/png", prompt: "p" }, 1], ["delta", { text: "b" }, 2]),
+    );
+    const opts = options();
+    await expect(api.sendMessage("c1", "hi", opts)).rejects.toBeInstanceOf(StreamInterrupted);
+    expect(opts.cursor).toEqual({ lastId: 2, started: true, jobId: null });
+    expect(opts.onImage).toHaveBeenCalledWith({ id: "0123456789abcdef0123456789abcdef", prompt: "p" });
+  });
+
+  it("resumes with Last-Event-ID and ignores replayed ids it already applied", async () => {
+    streamingFetch.mockResolvedValue(sse(["delta", { text: "b" }, 1], ["delta", { text: "c" }, 2], ["done", { id: "c1" }, 3]));
+    const opts = options();
+    opts.cursor.lastId = 1;
+    await expect(api.resumeMessage("c1", 1, opts)).resolves.toEqual({ id: "c1" });
+    expect(opts.onDelta.mock.calls).toEqual([["c"]]);
+    const [url, init] = streamingFetch.mock.calls[0];
+    expect(url).toBe("https://lumio.test/api/chats/c1/messages/stream");
+    expect(init.method).toBe("GET");
+    expect(init.headers["Last-Event-ID"]).toBe("1");
+  });
+
+  it("resolves null on 204 and rejects 404 as an ApiError", async () => {
+    streamingFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(api.resumeMessage("c1", 4, options())).resolves.toBeNull();
+    streamingFetch.mockResolvedValueOnce(json({ detail: "Chat not found" }, { status: 404 }));
+    await expect(api.resumeMessage("c1", 4, options())).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("keeps X-Job-Id from the POST and sends it as ?job= on resume", async () => {
+    const res = sse(["delta", { text: "a" }, 0]);
+    res.headers.set("X-Job-Id", "job_1-A");
+    streamingFetch.mockResolvedValueOnce(res);
+    const opts = options();
+    await expect(api.sendMessage("c1", "hi", opts)).rejects.toBeInstanceOf(StreamInterrupted);
+    expect(opts.cursor.jobId).toBe("job_1-A");
+    streamingFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(api.resumeMessage("c1", 0, opts)).resolves.toBeNull();
+    expect(streamingFetch.mock.calls[1][0]).toBe("https://lumio.test/api/chats/c1/messages/stream?job=job_1-A");
+    expect(streamingFetch.mock.calls[1][1].headers["Last-Event-ID"]).toBe("0");
+  });
+
+  it("ignores a job id that is not a plain token", async () => {
+    const res = sse(["delta", { text: "a" }, 0]);
+    res.headers.set("X-Job-Id", "a&b=c");
+    streamingFetch.mockResolvedValueOnce(res);
+    const opts = options();
+    await api.sendMessage("c1", "hi", opts).catch(() => undefined);
+    expect(opts.cursor.jobId).toBeNull();
+  });
+
+  it("only sends Last-Event-ID as a non-negative integer, and does not swallow a 422", async () => {
+    for (const bad of [-1, 1.5, Number.NaN]) {
+      streamingFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+      await api.resumeMessage("c1", bad, options());
+      expect(streamingFetch.mock.calls.at(-1)?.[1].headers["Last-Event-ID"]).toBeUndefined();
+    }
+    streamingFetch.mockResolvedValueOnce(json({ detail: "Last-Event-ID must be an event number" }, { status: 422 }));
+    await expect(api.resumeMessage("c1", 3, options())).rejects.toMatchObject({ status: 422 });
+  });
+
+  it("posts to the cancel route", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    await api.cancelMessage("c1");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://lumio.test/api/chats/c1/messages/cancel");
+    expect(init.method).toBe("POST");
   });
 });

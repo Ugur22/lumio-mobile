@@ -55,6 +55,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/oauth/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Oauth Exchange
+         * @description Trades the one-time code the OAuth callback gave the native app, plus its PKCE verifier, for a session token.
+         *
+         *     The code is consumed before the verifier is checked, so a wrong verifier burns it: a guess costs the attacker the code,
+         *     and the app just starts the sign-in again. Which check failed is never said.
+         */
+        post: operations["oauth_exchange_api_auth_oauth_exchange_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/oauth/{provider}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Callback */
+        get: operations["callback_api_auth_oauth__provider__callback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/oauth/{provider}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Start */
+        get: operations["start_api_auth_oauth__provider__start_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/password": {
         parameters: {
             query?: never;
@@ -214,6 +271,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/chats/{chat_id}/messages/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Reply
+         * @description The only way to stop a reply: the text so far is saved. Does nothing when no reply is running.
+         */
+        post: operations["cancel_reply_api_chats__chat_id__messages_cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chats/{chat_id}/messages/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resume Stream
+         * @description Replays the events after `Last-Event-ID` (or `?after=`) and follows the reply live.
+         *
+         *     204 when no reply is buffered, or when `?job=` names a reply that is no longer the chat's current one (the cursor is stale).
+         */
+        get: operations["resume_stream_api_chats__chat_id__messages_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/chats/{chat_id}/model": {
         parameters: {
             query?: never;
@@ -352,6 +451,23 @@ export interface paths {
         put?: never;
         /** Activate Profile */
         post: operations["activate_profile_api_profiles__profile_id__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Trial */
+        get: operations["get_trial_api_trial_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -543,6 +659,13 @@ export interface components {
             name?: string | null;
             /** Vision */
             vision?: boolean | null;
+        };
+        /** ExchangeBody */
+        ExchangeBody: {
+            /** Code */
+            code: string;
+            /** Verifier */
+            verifier: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -769,6 +892,11 @@ export interface components {
             key_store: "keychain" | "file";
             /** Last4 */
             last4: string | null;
+            /**
+             * Managed
+             * @default false
+             */
+            managed: boolean;
             /** Model */
             model: string;
             /** Name */
@@ -779,7 +907,7 @@ export interface components {
              */
             needs_key: boolean;
             /** Source */
-            source: ("keychain" | "env") | null;
+            source: ("keychain" | "env" | "server") | null;
             /**
              * Vision
              * @default false
@@ -850,6 +978,19 @@ export interface components {
             /** Token */
             token: string;
             user: components["schemas"]["UserView"];
+        };
+        /** TrialStatus */
+        TrialStatus: {
+            /** Ended */
+            ended: boolean;
+            /** Enrolled */
+            enrolled: boolean;
+            /** Limit */
+            limit: number;
+            /** Remaining */
+            remaining: number;
+            /** Used */
+            used: number;
         };
         /** Usage */
         Usage: {
@@ -975,6 +1116,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserView"];
+                };
+            };
+        };
+    };
+    oauth_exchange_api_auth_oauth_exchange_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExchangeBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenLogin"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    callback_api_auth_oauth__provider__callback_get: {
+        parameters: {
+            query?: {
+                code?: string | null;
+                state?: string | null;
+                error?: string | null;
+            };
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_api_auth_oauth__provider__start_get: {
+        parameters: {
+            query?: {
+                client?: string | null;
+                redirect?: string | null;
+                challenge?: string | null;
+            };
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -1344,6 +1584,71 @@ export interface operations {
             };
         };
     };
+    cancel_reply_api_chats__chat_id__messages_cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chat_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resume_stream_api_chats__chat_id__messages_stream_get: {
+        parameters: {
+            query?: {
+                after?: number | null;
+                job?: string | null;
+            };
+            header?: {
+                "last-event-id"?: string | null;
+            };
+            path: {
+                chat_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     update_chat_model_api_chats__chat_id__model_put: {
         parameters: {
             query?: never;
@@ -1659,6 +1964,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_trial_api_trial_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrialStatus"];
                 };
             };
         };

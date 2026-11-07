@@ -1,6 +1,7 @@
 import { fetch as streamingFetch } from "expo/fetch";
 
 import { createSseParser } from "@/lib/sse";
+import { normalizeTrial } from "@/lib/trial";
 
 import { parseIllustrationFailure } from "./parse";
 
@@ -15,9 +16,11 @@ import type {
   LoginBody,
   ModelsQuery,
   ModelsResult,
+  OAuthExchangeBody,
   ProfileList,
   SourceRef,
   TokenLogin,
+  TrialStatus,
   UserView,
 } from "./types";
 
@@ -85,45 +88,97 @@ async function request<T>(path: string, init: RequestInit = {}, announce = true)
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
 
-export interface StreamOptions {
-  images: ImageUpload[];
-  web: boolean;
-  illustrate: boolean;
+// Where a reply stands across reconnects. `lastId` is the last SSE event id applied, so a resume asks for what follows
+// it and an event replayed twice is ignored. `started` is true once the server accepted the message (a job exists).
+export interface StreamCursor {
+  lastId: number;
+  started: boolean;
+  // `X-Job-Id` of the reply, so a resume can never attach to a newer reply in the same chat.
+  jobId: string | null;
+}
+export const newCursor = (): StreamCursor => ({ lastId: -1, started: false, jobId: null });
+
+// The header is untrusted: keep it only if it is a plain token that is safe in a query string.
+function rememberJob(res: { headers: { get(name: string): string | null } }, cursor: StreamCursor) {
+  const id = res.headers.get("X-Job-Id");
+  if (id && /^[A-Za-z0-9_-]{1,64}$/.test(id)) cursor.jobId = id;
+}
+
+// The server ended the reply with an `error` event: a real failure, not a dropped connection.
+export class ReplyFailed extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ReplyFailed";
+  }
+}
+
+// A handler passed to the stream threw. Not a network problem, so never worth a reconnect.
+export class HandlerError extends Error {
+  constructor(readonly cause: unknown) {
+    super(cause instanceof Error ? cause.message : "Reply handler failed");
+    this.name = "HandlerError";
+  }
+}
+
+// The connection ended before `done`. The reply is still running on the server; resume.
+export class StreamInterrupted extends Error {
+  constructor() {
+    super("Connection closed before the reply finished");
+    this.name = "StreamInterrupted";
+  }
+}
+
+export interface Handlers {
   signal: AbortSignal;
+  cursor: StreamCursor;
   onDelta: (text: string) => void;
   onSources: (sources: SourceRef[], notes: string[], query: string | null) => void;
   onIllustrationFailed: (failure: { prompt: string; status: number | null; detail: string }) => void;
+  // A picture was stored. Only the id and prompt are used; the id is checked by the caller before it becomes a URL.
+  onImage: (image: { id: string; prompt: string }) => void;
 }
 
-// Resolves with the saved chat once the server sends `done`. Aborting rejects with an AbortError; the server then
-// saves whatever text it had already streamed. React Native's own fetch cannot stream a body, so this uses Expo's.
-async function streamMessage(id: string, content: string, opts: StreamOptions): Promise<DoneChat> {
-  const { images, web, illustrate, signal, onDelta, onSources, onIllustrationFailed } = opts;
-  const res = await streamingFetch(`${baseUrl}/api/chats/${id}/messages`, {
-    method: "POST",
-    headers: { ...headers(), Accept: "text/event-stream" },
-    body: JSON.stringify({ content, images, web, illustrate }),
-    signal,
-  });
-  if (!res.ok) throw await apiFailure(res as unknown as Response, true);
-  if (!res.body) throw new Error(res.statusText || `HTTP ${res.status}`);
+export interface StreamOptions extends Handlers {
+  images: ImageUpload[];
+  web: boolean;
+  illustrate: boolean;
+}
 
+// Reads one SSE response to its end. Resolves with the saved chat on `done`.
+async function consume(res: Awaited<ReturnType<typeof streamingFetch>>, h: Handlers): Promise<DoneChat> {
+  if (!res.body) throw new Error(res.statusText || `HTTP ${res.status}`);
+  const { cursor } = h;
   let chat: DoneChat | null = null;
   let failure: string | null = null;
-  const feed = createSseParser(({ event, data }) => {
-    const payload = JSON.parse(data) as Record<string, unknown>;
-    if (event === "delta") onDelta(payload.text as string);
-    else if (event === "sources")
-      onSources(
-        (payload.sources as SourceRef[] | undefined) ?? [],
-        (payload.notes as string[] | undefined) ?? [],
-        typeof payload.query === "string" ? payload.query : null,
-      );
-    // Images are delivered with `done` (stored on the saved message), so the live event needs no handling.
-    else if (event === "image") return;
-    else if (event === "illustration_failed") onIllustrationFailed(parseIllustrationFailure(payload));
-    else if (event === "done") chat = payload as unknown as DoneChat;
-    else if (event === "error") failure = errorMessage(payload.detail, "Stream failed");
+  const feed = createSseParser(({ event, data, id }) => {
+    // Replays after a resume start right after `lastId`, but an id we already applied is never applied twice.
+    if (id !== undefined) {
+      if (id <= cursor.lastId) return;
+      cursor.lastId = id;
+    }
+    let payload: Record<string, unknown>;
+    try {
+      payload = JSON.parse(data) as Record<string, unknown>;
+    } catch {
+      return;
+    }
+    try {
+      if (event === "delta") {
+        if (typeof payload.text === "string") h.onDelta(payload.text);
+      } else if (event === "sources")
+        h.onSources(
+          (payload.sources as SourceRef[] | undefined) ?? [],
+          (payload.notes as string[] | undefined) ?? [],
+          typeof payload.query === "string" ? payload.query : null,
+        );
+      else if (event === "image") {
+        if (typeof payload.id === "string") h.onImage({ id: payload.id, prompt: typeof payload.prompt === "string" ? payload.prompt : "" });
+      } else if (event === "illustration_failed") h.onIllustrationFailed(parseIllustrationFailure(payload));
+      else if (event === "done") chat = payload as unknown as DoneChat;
+      else if (event === "error") failure = errorMessage(payload.detail, "Stream failed");
+    } catch (e) {
+      throw new HandlerError(e);
+    }
   });
 
   // `stream: true` keeps a multi-byte character that a network chunk split in two from turning into garbage.
@@ -135,9 +190,47 @@ async function streamMessage(id: string, content: string, opts: StreamOptions): 
     feed(decoder.decode(value, { stream: true }));
   }
 
-  if (failure !== null) throw new Error(failure);
-  if (chat === null) throw new Error("Connection closed before the reply finished");
+  if (failure !== null) throw new ReplyFailed(failure);
+  if (chat === null) throw new StreamInterrupted();
   return chat;
+}
+
+// Resolves with the saved chat once the server sends `done`. A stop (see cancelMessage) ends the reply on the server,
+// which saves the partial text; aborting only drops this connection. React Native's own fetch cannot stream a body,
+// so this uses Expo's.
+async function streamMessage(id: string, content: string, opts: StreamOptions): Promise<DoneChat> {
+  const { images, web, illustrate, signal } = opts;
+  const res = await streamingFetch(`${baseUrl}/api/chats/${id}/messages`, {
+    method: "POST",
+    headers: { ...headers(), Accept: "text/event-stream" },
+    body: JSON.stringify({ content, images, web, illustrate }),
+    signal,
+  });
+  if (!res.ok) throw await apiFailure(res as unknown as Response, true);
+  opts.cursor.started = true;
+  rememberJob(res, opts.cursor);
+  // Attached: from here on a break is resumed by event id like any other.
+  opts.cursor.started = true;
+  return consume(res, opts);
+}
+
+// Reattaches to the reply running for this chat and replays the events after `afterId`. Resolves null when the server
+// has no reply buffered any more (204): the caller refetches the chat.
+async function resumeMessage(id: string, afterId: number, opts: Handlers): Promise<DoneChat | null> {
+  // The server answers 422 to anything but a plain integer, so the header is sent only as one (omitted = from the start).
+  const last: Record<string, string> = Number.isSafeInteger(afterId) && afterId >= 0 ? { "Last-Event-ID": String(afterId) } : {};
+  const job = opts.cursor.jobId ? `?job=${encodeURIComponent(opts.cursor.jobId)}` : "";
+  const res = await streamingFetch(`${baseUrl}/api/chats/${id}/messages/stream${job}`, {
+    method: "GET",
+    headers: { ...headers(), Accept: "text/event-stream", ...last },
+    signal: opts.signal,
+  });
+  if (res.status === 204) return null;
+  if (!res.ok) throw await apiFailure(res as unknown as Response, true);
+  rememberJob(res, opts.cursor);
+  // Attached: from here on a break is resumed by event id like any other.
+  opts.cursor.started = true;
+  return consume(res, opts);
 }
 
 // Images need the token too, so the picture component sends this header along with the URL.
@@ -149,6 +242,9 @@ export const imageSource = (chatId: string, imageId: string) => ({
 export const api = {
   me: () => request<UserView>("/auth/me", {}, false),
   login: (body: LoginBody) => request<TokenLogin>("/auth/token", { method: "POST", body: JSON.stringify(body) }, false),
+  oauthExchange: (body: OAuthExchangeBody) =>
+    request<TokenLogin>("/auth/oauth/exchange", { method: "POST", body: JSON.stringify(body) }, false),
+  getTrial: (): Promise<TrialStatus> => request<unknown>("/trial").then(normalizeTrial),
   logout: () => request<void>("/auth/logout", { method: "POST" }),
   listChats: () => request<ChatSummary[]>("/chats"),
   createChat: () => request<Chat>("/chats", { method: "POST" }),
@@ -157,6 +253,8 @@ export const api = {
     request<Chat>(`/chats/${id}`, { method: "PATCH", body: JSON.stringify({ title }) }),
   deleteChat: (id: string) => request<void>(`/chats/${id}`, { method: "DELETE" }),
   sendMessage: streamMessage,
+  resumeMessage,
+  cancelMessage: (id: string) => request<void>(`/chats/${id}/messages/cancel`, { method: "POST" }),
   saveBehavior: (id: string, body: BehaviorBody) =>
     request<Chat>(`/chats/${id}/behavior`, { method: "PUT", body: JSON.stringify(body) }),
   setChatModel: (id: string, body: ChatModelBody) =>

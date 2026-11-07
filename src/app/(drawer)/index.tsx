@@ -15,15 +15,20 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ChatModelBody, IllustrationFailure } from "@/api/types";
 import { Bubble } from "@/components/Bubble";
 import { Composer } from "@/components/Composer";
+import { FlashNotice } from "@/components/FlashNotice";
 import { ProviderSwitcher } from "@/components/ProviderSwitcher";
 import { useChat } from "@/hooks/useChats";
 import { useProfiles } from "@/hooks/useProfiles";
 import { useStreamingSend } from "@/hooks/useStreamingSend";
+import { useTrial } from "@/hooks/useTrial";
 import type { Attachment } from "@/lib/images";
+import { blankSpaceFor } from "@/lib/blankSpace";
 import { effectiveProfile } from "@/lib/providers";
 import { buildRows, nextTurnKeys } from "@/lib/rows";
 import { usePalette } from "@/lib/theme";
+import { bannerText, isManaged, sendBlocked, trialBanner } from "@/lib/trial";
 import { useCurrent } from "@/store/current";
+import { useSheets } from "@/store/sheets";
 import { useStream } from "@/store/stream";
 
 // How far from the end of the real content (in px) the "jump to latest" arrow starts to show.
@@ -52,9 +57,14 @@ export default function Chat() {
   const failuresChatId = useStream((s) => s.failuresChatId);
   // A turn belongs to the chat it was sent in; opening another chat must not show it there.
   const pending = storedPending && storedPending.chatId === chatId ? storedPending : null;
-  const { send: sendMessage, stop } = useStreamingSend();
+  const { send: sendMessage, stop } = useStreamingSend({
+    onTrialRefused: (failure) => failure.kind === "ended" && useSheets.getState().setProviders(true),
+  });
   const { data: profiles } = useProfiles();
+  const { data: trial } = useTrial();
   const activeProfile = effectiveProfile(profiles, chatId ? chat?.profile_id : null).profile;
+  const managed = isManaged(activeProfile);
+  const banner = trialBanner(trial);
   const streaming = pending?.status === "thinking" || pending?.status === "streaming";
 
   const rows = useMemo(() => buildRows(chat?.messages, pending), [chat?.messages, pending]);
@@ -73,6 +83,8 @@ export default function Chat() {
   const heights = useRef<Record<string, number>>({});
   const turn = useRef<{ userKey: string; replyKey: string } | null>(null);
   const pendingScroll = useRef(false);
+  // The turn was saved (pending cleared); its rows have not reported their final height yet.
+  const turnSaved = useRef(false);
   // The epoch whose opening scroll to the end is done (or not wanted, because the user already sent something).
   const scrolledEpoch = useRef(-1);
 
@@ -83,6 +95,16 @@ export default function Chat() {
       if (!t || (key !== t.userKey && key !== t.replyKey)) return;
       const userHeight = heights.current[t.userKey];
       const replyHeight = heights.current[t.replyKey];
+      if (turnSaved.current) {
+        // First layout of the saved rows: these are the final heights. Only the reply's own measure ends the turn,
+        // so a late pass cannot inflate the space again.
+        blankSpace.set(blankSpaceFor(viewportHeight.current, userHeight, replyHeight));
+        if (key === t.replyKey) {
+          turn.current = null;
+          turnSaved.current = false;
+        }
+        return;
+      }
       blankSpace.set(Math.max(0, viewportHeight.current - (userHeight ?? 0) - (replyHeight ?? 0)));
       if (!pendingScroll.current || userHeight === undefined || replyHeight === undefined) return;
       pendingScroll.current = false;
@@ -93,6 +115,34 @@ export default function Chat() {
     },
     [blankSpace],
   );
+
+  // When the turn is saved, `pending` clears and the reply may have grown (pictures). The saved rows have not laid out
+  // yet at this point, so the heights are still the live ones: keep the turn until the reply row reports again
+  // (onItemHeight finalizes), rather than locking in stale numbers.
+  const turnSeen = useRef(false);
+  useEffect(() => {
+    if (pending) {
+      turnSeen.current = true;
+      return;
+    }
+    if (!turn.current || !turnSeen.current) return;
+    turnSeen.current = false;
+    turnSaved.current = true;
+    pendingScroll.current = false;
+  }, [pending]);
+
+  // A turn whose rows are gone (stopped before anything streamed, a lost reply) must not leave its space behind.
+  useEffect(() => {
+    const t = turn.current;
+    if (!t || pending || rows.some((r) => r.key === t.replyKey)) return;
+    delete heights.current[t.userKey];
+    delete heights.current[t.replyKey];
+    turn.current = null;
+    turnSaved.current = false;
+    turnSeen.current = false;
+    pendingScroll.current = false;
+    blankSpace.set(0);
+  }, [rows, pending, blankSpace]);
 
   // Notes about pictures that failed belong to the turn just sent; opening another chat ends them.
   useEffect(() => useStream.getState().clearFailures(), [epoch]);
@@ -112,6 +162,8 @@ export default function Chat() {
       scrolledEpoch.current = epoch;
       const { userKey, replyKey } = nextTurnKeys(rows.length);
       turn.current = { userKey, replyKey };
+      turnSeen.current = false;
+      turnSaved.current = false;
       pendingScroll.current = true;
       // Room to scroll the new message to the top before its real height is measured.
       blankSpace.set(viewportHeight.current);
@@ -163,6 +215,8 @@ export default function Chat() {
           <SquarePen size={22} color={palette.text} />
         </Pressable>
       </View>
+
+      <FlashNotice />
 
       <View className="flex-1" onLayout={(e) => (viewportHeight.current = e.nativeEvent.layout.height)}>
         {loadFailed ? (
@@ -224,7 +278,12 @@ export default function Chat() {
         onStop={stop}
         onHeight={setComposerHeight}
         canAttach={activeProfile?.vision ?? false}
-        canIllustrate={Boolean(activeProfile?.image_model)}
+        // The trial's provider takes no images, and illustrations are not part of it.
+        canIllustrate={!managed && Boolean(activeProfile?.image_model)}
+        managed={managed}
+        trialText={managed && banner ? bannerText(banner) : null}
+        blocked={sendBlocked(trial, activeProfile)}
+        onOpenProviders={() => useSheets.getState().setProviders(true)}
         providerName={activeProfile?.name ?? null}
       />
     </View>
