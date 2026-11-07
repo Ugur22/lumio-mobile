@@ -193,10 +193,11 @@ export const Reply = memo(function Reply({ text, streaming, chatId, images }: Re
   // Pictures stored while the reply is still streaming; only the turn in flight has any.
   const live = useStream((s) => (streaming ? s.images : NO_LIVE));
   const createdChatId = useStream((s) => s.createdChatId);
+  const illustrate = useStream((s) => s.pending?.illustrate ?? true);
   const imageChat = chatId ?? (streaming ? createdChatId : null);
   const parts = useMemo(
-    () => splitReply(text, images.map((i) => ({ id: i.id, prompt: i.prompt })), streaming, live),
-    [text, images, streaming, live],
+    () => splitReply(text, images.map((i) => ({ id: i.id, prompt: i.prompt })), streaming, live, illustrate),
+    [text, images, streaming, live, illustrate],
   );
 
   if (parts.length === 0) return <Text_ text="" streaming={streaming} />;

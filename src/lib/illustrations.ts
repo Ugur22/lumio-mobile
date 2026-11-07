@@ -55,7 +55,15 @@ function assignArrived(source: string, arrived: readonly Illustration[]): Map<nu
 // Only ids in `known` (that message's own images) become pictures, so reply text can't point at other files.
 // `arrived` are pictures whose `image` event came in before the reply was saved. Pictures are generated in parallel, so
 // they can finish out of order: a directive takes the arrived picture with its own prompt, else the next unused one.
-export function splitReply(content: string, known: Illustration[], streaming: boolean, arrived: readonly Illustration[] = []): Segment[] {
+// `illustrate` false (the turn was sent with pictures off): a directive left in the text never gets a skeleton, since the
+// server strips it; only pictures that really arrived are shown.
+export function splitReply(
+  content: string,
+  known: Illustration[],
+  streaming: boolean,
+  arrived: readonly Illustration[] = [],
+  illustrate = true,
+): Segment[] {
   const byId = new Map(known.map((i) => [i.id, i]));
   const source = streaming ? withoutPartialTail(content) : content;
   const out: Segment[] = [];
@@ -75,7 +83,8 @@ export function splitReply(content: string, known: Illustration[], streaming: bo
       // A directive still in the text: the picture is on its way while streaming, stale otherwise.
       if (streaming) {
         const live = assigned.get(directive++);
-        out.push(live ? { kind: "image", illustration: live } : { kind: "pending" });
+        if (live) out.push({ kind: "image", illustration: live });
+        else if (illustrate) out.push({ kind: "pending" });
       }
       continue;
     }

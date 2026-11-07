@@ -74,6 +74,24 @@ describe("splitReply with pictures that arrived mid-stream", () => {
     expect(kinds(splitReply("[[image: a cat on a mat]]\n[[image: a cat]]", [], true, [cat, mat]))).toEqual(["image:d", "image:e"]);
   });
 
+  it("with illustrate off, drops directives silently while streaming (no skeleton, no stray text)", () => {
+    const out = splitReply("Intro.\n[[image: a lighthouse]]\nMore", [], true, [], false);
+    expect(kinds(out)).toEqual(["text", "text"]);
+    expect(JSON.stringify(out)).not.toContain("image:");
+  });
+
+  it("with illustrate off, hides a partial directive tail too", () => {
+    expect(splitReply("Intro. [[ima", [], true, [], false)).toEqual([{ kind: "text", text: "Intro. " }]);
+  });
+
+  it("with illustrate off, a picture that really arrived still shows", () => {
+    expect(kinds(splitReply(text, [], true, [A], false))).toEqual(["text", "image:a", "text", "text"]);
+  });
+
+  it("with illustrate on, the skeleton is unchanged", () => {
+    expect(kinds(splitReply(text, [], true, [], true))).toEqual(["text", "pending", "text", "pending", "text"]);
+  });
+
   it("uses a picture once, and ignores arrivals when the reply is saved", () => {
     expect(kinds(splitReply("[[image: a lighthouse]][[image: a lighthouse]]", [], true, [A]))).toEqual(["image:a", "pending"]);
     expect(kinds(splitReply(text, [], false, [A, B]))).toEqual(["text", "text", "text"]);
