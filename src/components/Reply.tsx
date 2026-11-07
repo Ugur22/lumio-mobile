@@ -206,8 +206,11 @@ export const Reply = memo(function Reply({ text, streaming, chatId, images }: Re
       {parts.map((part, i) => {
         if (part.kind === "text") return <Text_ key={i} text={part.text} streaming={streaming && i === lastText && i === parts.length - 1} />;
         if (part.kind === "pending") return <Illustrating key={i} palette={palette} />;
+        // Live and saved pictures get different keys, so when the saved message replaces the live one the image remounts
+        // and loads fresh instead of keeping a failure from before the server could serve it.
+        const liveKey = streaming && live.some((l) => l.id === part.illustration.id);
         return (
-          <View key={i} className="my-3 items-start">
+          <View key={`${liveKey ? "live" : "saved"}-${part.illustration.id}`} className="my-3 items-start">
             {imageChat ? (
               <AttachedImage source={imageSource(imageChat, part.illustration.id)} label={part.illustration.prompt ?? "Generated image"} size={260} />
             ) : null}
