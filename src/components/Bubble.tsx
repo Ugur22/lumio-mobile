@@ -47,7 +47,7 @@ export const Bubble = memo(function Bubble({ row, chatId, failures, onHeight }: 
   if (row.state === "error") {
     return (
       <View className="px-4 py-2" onLayout={report}>
-        <Text className="text-[16px] leading-6 text-warn-bar">{row.text || "The reply failed."}</Text>
+        <Text className={`text-[16px] leading-6 ${row.notice ? "text-muted" : "text-warn-bar"}`}>{row.text || "The reply failed."}</Text>
       </View>
     );
   }

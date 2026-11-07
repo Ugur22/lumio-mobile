@@ -11,6 +11,8 @@ export interface Row {
   images: Message["images"];
   // Local files of the photos in a turn that is still being sent.
   previews: string[];
+  // An error row that is the trial speaking (ended, full) rather than a fault.
+  notice?: boolean;
 }
 
 const rowKey = (index: number) => `m-${index}`;
@@ -36,6 +38,7 @@ export function buildRows(messages: readonly Message[] | undefined, pending: Pen
     state: pending.status,
     images: [],
     previews: [],
+    ...(pending.status === "error" && pending.notice && { notice: true }),
   });
   return rows;
 }

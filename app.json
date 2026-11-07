@@ -31,7 +31,8 @@
           "photosPermission": "Lumio uses your photo library so you can attach pictures to a message.",
           "cameraPermission": "Lumio uses the camera so you can take a picture to attach to a message."
         }
-      ]
+      ],
+      "expo-web-browser"
     ]
   }
 }

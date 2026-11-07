@@ -12,6 +12,9 @@ import { modelBody, overrideModel, shownModel, showDefaultItem } from "@/lib/cha
 import { customCandidate, groupModels } from "@/lib/modelOptions";
 import { effectiveProfile } from "@/lib/providers";
 import { usePalette } from "@/lib/theme";
+import { TRIAL_ENDED, TRIAL_LABEL, TRIAL_LOCKED, bannerText, hasOwnProvider, isManaged, sendBlocked, trialActive, trialBanner } from "@/lib/trial";
+import { useTrial } from "@/hooks/useTrial";
+import { useSheets } from "@/store/sheets";
 
 interface Props {
   // The open chat; null means a blank chat, where the picker sets the default for new chats.
@@ -33,13 +36,15 @@ export function ProviderSwitcher({ chatId, pendingModel, onPendingModel, disable
   const activate = useActivateProfile();
   const chatSwitch = useSwitchChatProfile(chat);
   const setModel = useSetChatModel();
-  const [open, setOpen] = useState(false);
+  const open = useSheets((s) => s.providers);
+  const setOpen = useSheets((s) => s.setProviders);
+  const trial = useTrial().data;
   const [query, setQuery] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
 
   const { profile: active, fellBack } = effectiveProfile(profiles, chatId ? chat?.profile_id : null);
   const blank = chatId === null;
-  const { models, windows, error: modelsError, isPending: modelsLoading } = useProviderModels(active?.id ?? "", open && !!active);
+  const { models, windows, error: modelsError, isPending: modelsLoading } = useProviderModels(active?.id ?? "", open && !!active && !isManaged(active));
   const groups = useMemo(() => groupModels(models, query), [models, query]);
   const custom = customCandidate(models, query);
 
@@ -47,6 +52,12 @@ export function ProviderSwitcher({ chatId, pendingModel, onPendingModel, disable
   if (!profiles) return null;
   if (!active) return <Text className="text-center text-xs text-muted">Add a provider on the website</Text>;
 
+  const managed = isManaged(active);
+  const banner = trialBanner(trial);
+  const ended = sendBlocked(trial, active);
+  // Adding providers, listing models and a web key are refused by the server while the trial runs.
+  const locked = trialActive(trial);
+  const label = (p: { name: string; managed?: boolean }) => (p.managed ? TRIAL_LABEL : p.name);
   const current = shownModel({ chatModel: chat?.model, pending: pendingModel, profileModel: active.model, blank });
   const override = overrideModel(chat?.model, pendingModel, blank);
 
@@ -97,12 +108,12 @@ export function ProviderSwitcher({ chatId, pendingModel, onPendingModel, disable
       <Pressable
         onPress={() => setOpen(true)}
         disabled={disabled || (chatId !== null && !chat)}
-        accessibilityLabel={`Provider and model: ${active.name}, ${current}`}
+        accessibilityLabel={`Provider and model: ${label(active)}, ${current}`}
         className="flex-row items-center justify-center gap-1 self-center rounded-full px-2 py-0.5 disabled:opacity-60"
         hitSlop={8}
       >
         <Text className="shrink text-xs text-muted" numberOfLines={1}>
-          {active.name} · {current}
+          {label(active)} · {current}
         </Text>
         <ChevronDown size={12} color={palette.muted} />
       </Pressable>
@@ -130,15 +141,32 @@ export function ProviderSwitcher({ chatId, pendingModel, onPendingModel, disable
                 onPress={() => changeProvider(p.id)}
                 className={`flex-row items-center justify-between px-4 py-3 ${i > 0 ? "border-t border-border" : ""}`}
               >
-                <Text className="text-[16px] text-text">{p.name}</Text>
+                <Text className="text-[16px] text-text">{label(p)}</Text>
                 {p.id === active.id ? <Check size={18} color={palette.accent} /> : null}
               </Pressable>
             ))}
           </View>
 
+          {banner ? (
+            <Text className={`px-5 pt-2 text-[13px] ${ended ? "text-warn-bar" : "text-muted"}`}>
+              {bannerText(banner)}
+              {ended ? `. ${hasOwnProvider(profiles) ? "Pick your own provider above to continue." : TRIAL_ENDED}` : ""}
+            </Text>
+          ) : null}
+          {locked ? <Text className="px-5 pt-1 text-[13px] text-muted">{TRIAL_LOCKED}</Text> : null}
+          {managed ? (
+            <Text className="px-5 pt-5 text-[13px] text-muted">
+              The free trial uses {active.model}. You can pick a model once you add your own provider on the website.
+            </Text>
+          ) : null}
+
+          {managed ? null : (
           <Text className="px-5 pb-1 pt-5 text-xs font-semibold uppercase text-muted">
             {blank ? "Model for the next chat" : "Model for this chat"}
           </Text>
+          )}
+          {managed ? null : (
+            <>
           <TextInput
             className="mx-4 mb-2 rounded-xl border border-border bg-surface px-4 py-3 text-[16px] text-text"
             value={query}
@@ -176,6 +204,8 @@ export function ProviderSwitcher({ chatId, pendingModel, onPendingModel, disable
               </Pressable>
             )}
           />
+            </>
+          )}
         </View>
       </Modal>
     </>
