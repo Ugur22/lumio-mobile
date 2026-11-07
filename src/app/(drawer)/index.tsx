@@ -1,7 +1,7 @@
 import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { DrawerActions } from "@react-navigation/native";
 import { useNavigation } from "expo-router";
-import { ArrowDown, Menu, SquarePen } from "lucide-react-native";
+import { Menu, SquarePen } from "lucide-react-native";
 import { createContext, forwardRef, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { type NativeScrollEvent, type NativeSyntheticEvent, Pressable, type ScrollViewProps, Text, View } from "react-native";
 import {
@@ -16,6 +16,7 @@ import type { ChatModelBody, IllustrationFailure } from "@/api/types";
 import { Bubble } from "@/components/Bubble";
 import { Composer } from "@/components/Composer";
 import { FlashNotice } from "@/components/FlashNotice";
+import { JumpToLatest } from "@/components/JumpToLatest";
 import { ProviderSwitcher } from "@/components/ProviderSwitcher";
 import { useChat } from "@/hooks/useChats";
 import { useProfiles } from "@/hooks/useProfiles";
@@ -23,6 +24,7 @@ import { useStreamingSend } from "@/hooks/useStreamingSend";
 import { useTrial } from "@/hooks/useTrial";
 import type { Attachment } from "@/lib/images";
 import { blankSpaceFor } from "@/lib/blankSpace";
+import { jumpVisible } from "@/lib/jump";
 import { effectiveProfile } from "@/lib/providers";
 import { buildRows, nextTurnKeys } from "@/lib/rows";
 import { usePalette } from "@/lib/theme";
@@ -30,9 +32,6 @@ import { bannerText, isManaged, sendBlocked, trialBanner } from "@/lib/trial";
 import { useCurrent } from "@/store/current";
 import { useSheets } from "@/store/sheets";
 import { useStream } from "@/store/stream";
-
-// How far from the end of the real content (in px) the "jump to latest" arrow starts to show.
-const JUMP_DISTANCE = 160;
 
 const NO_FAILURES: IllustrationFailure[] = [];
 
@@ -183,10 +182,31 @@ export default function Chat() {
     [chatId, epoch, rows.length, blankSpace, sendMessage, pendingModel],
   );
 
-  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-    setShowJump(contentSize.height - (contentOffset.y + layoutMeasurement.height) > JUMP_DISTANCE);
+  // The arrow depends on three numbers that change independently: the scroll position, the content height (it grows
+  // under a reader who has not scrolled while the reply streams) and the viewport. Each source updates its own ref and
+  // all of them recompute. Content height excludes the blank space, which is an inset.
+  const scrollMetrics = useRef({ offset: 0, content: 0, viewport: 0 });
+  const refreshJump = useCallback(() => {
+    const m = scrollMetrics.current;
+    setShowJump(jumpVisible(m.content, m.offset, m.viewport));
   }, []);
+
+  const onScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+      scrollMetrics.current = { offset: contentOffset.y, content: contentSize.height, viewport: layoutMeasurement.height };
+      refreshJump();
+    },
+    [refreshJump],
+  );
+
+  const onContentSizeChange = useCallback(
+    (_w: number, h: number) => {
+      scrollMetrics.current.content = h;
+      refreshJump();
+    },
+    [refreshJump],
+  );
 
   const jumpToLatest = useCallback(() => {
     listRef.current?.scrollToIndex({ index: rows.length - 1, animated: true, viewPosition: 1 });
@@ -218,7 +238,12 @@ export default function Chat() {
 
       <FlashNotice />
 
-      <View className="flex-1" onLayout={(e) => (viewportHeight.current = e.nativeEvent.layout.height)}>
+      <View className="flex-1" onLayout={(e) => {
+          viewportHeight.current = e.nativeEvent.layout.height;
+          scrollMetrics.current.viewport = e.nativeEvent.layout.height;
+          refreshJump();
+        }}
+      >
         {loadFailed ? (
           <Pressable onPress={() => refetch()} className="mx-6 mt-10">
             <Text className="text-center text-warn-bar">Could not load this chat. Tap to retry.</Text>
@@ -245,6 +270,7 @@ export default function Chat() {
               )}
               renderScrollComponent={ChatScrollView}
               onScroll={onScroll}
+              onContentSizeChange={onContentSizeChange}
               scrollEventThrottle={16}
               keyboardDismissMode="interactive"
               keyboardShouldPersistTaps="handled"
@@ -256,21 +282,13 @@ export default function Chat() {
         )}
       </View>
 
-      {showJump ? (
-        <KeyboardStickyView
-          pointerEvents="box-none"
-          offset={{ closed: 0, opened: insets.bottom }}
-          style={{ position: "absolute", left: 0, right: 0, bottom: composerHeight + 12, alignItems: "center" }}
-        >
-          <Pressable
-            onPress={jumpToLatest}
-            accessibilityLabel="Scroll to latest"
-            className="h-10 w-10 items-center justify-center rounded-full border border-border bg-surface"
-          >
-            <ArrowDown size={20} color={palette.text} />
-          </Pressable>
-        </KeyboardStickyView>
-      ) : null}
+      <KeyboardStickyView
+        pointerEvents="box-none"
+        offset={{ closed: 0, opened: insets.bottom }}
+        style={{ position: "absolute", left: 0, right: 0, bottom: composerHeight + 12, alignItems: "center" }}
+      >
+        <JumpToLatest visible={showJump} onPress={jumpToLatest} />
+      </KeyboardStickyView>
 
       <Composer
         streaming={streaming}
