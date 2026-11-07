@@ -77,6 +77,7 @@ export function useStreamingSend({ onTrialRefused }: Options = {}) {
           onSources: useStream.getState().setSources,
           onIllustrationFailed: useStream.getState().addFailure,
           onImage: useStream.getState().addImage,
+          onReasoning: useStream.getState().markReasoning,
           stopped: () => stopped.current,
           onChatId: (id) => {
             activeChat.current = id;

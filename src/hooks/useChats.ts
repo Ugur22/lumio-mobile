@@ -93,6 +93,7 @@ interface SendVars {
   onSources: (sources: SourceRef[], notes: string[], query: string | null) => void;
   onIllustrationFailed: (failure: IllustrationFailure) => void;
   onImage: (image: { id: string; prompt: string }) => void;
+  onReasoning: () => void;
   // The chat the reply streams into, once it exists (a first message creates it inside the mutation).
   onChatId?: (id: string) => void;
   // True once the user pressed Stop: the server then ends the stream with a terminal frame, which is not a failure.
@@ -152,7 +153,7 @@ async function savedAfterStop(id: string, knownCount: number): Promise<Chat> {
 export function useSendMessage() {
   const qc = useQueryClient();
   return useMutation<SentChat, Error, SendVars>({
-    mutationFn: async ({ chatId, content, images, web, illustrate, model, signal, onDelta, onSources, onIllustrationFailed, onImage, onChatId, stopped }) => {
+    mutationFn: async ({ chatId, content, images, web, illustrate, model, signal, onDelta, onSources, onIllustrationFailed, onImage, onReasoning, onChatId, stopped }) => {
       const id = chatId ?? (await api.createChat()).id;
       onChatId?.(id);
       // Chats are created before the first message, so the pick is stored with its own call.
@@ -172,6 +173,7 @@ export function useSendMessage() {
         onSources,
         onIllustrationFailed,
         onImage,
+        onReasoning,
         onDelta: (text: string) => {
           received = true;
           onDelta(text);

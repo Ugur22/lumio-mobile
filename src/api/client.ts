@@ -136,6 +136,8 @@ export interface Handlers {
   onIllustrationFailed: (failure: { prompt: string; status: number | null; detail: string }) => void;
   // A picture was stored. Only the id and prompt are used; the id is checked by the caller before it becomes a URL.
   onImage: (image: { id: string; prompt: string }) => void;
+  // The model started reasoning. Only the fact is passed on: the text can be long and is never shown on the phone.
+  onReasoning: () => void;
 }
 
 export interface StreamOptions extends Handlers {
@@ -171,6 +173,7 @@ async function consume(res: Awaited<ReturnType<typeof streamingFetch>>, h: Handl
           (payload.notes as string[] | undefined) ?? [],
           typeof payload.query === "string" ? payload.query : null,
         );
+      else if (event === "reasoning") h.onReasoning();
       else if (event === "image") {
         if (typeof payload.id === "string") h.onImage({ id: payload.id, prompt: typeof payload.prompt === "string" ? payload.prompt : "" });
       } else if (event === "illustration_failed") h.onIllustrationFailed(parseIllustrationFailure(payload));

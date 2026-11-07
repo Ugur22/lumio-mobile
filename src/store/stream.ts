@@ -6,7 +6,7 @@ import type { Illustration } from "@/lib/illustrations";
 // the saved chat then supplies the reply.
 // `images` are the local file URIs of the thumbnails.
 // `illustrate`: the turn was sent with pictures on. Off, the model's leftover [[image: ...]] directives get no picture.
-export type Pending = { text: string; chatId: string | null; images: string[]; illustrate: boolean } & (
+export type Pending = { text: string; chatId: string | null; images: string[]; illustrate: boolean; startedAt: number } & (
   | { status: "thinking" }
   | { status: "streaming"; reply: string }
   // `notice`: the trial refused the send, which is said calmly rather than as a failure.
@@ -19,6 +19,8 @@ interface StreamState {
   sources: SourceRef[];
   notes: string[];
   query: string | null;
+  // The model has started reasoning (the text itself is not kept).
+  reasoningSeen: boolean;
   // Failed illustrations of the turn just sent. They outlive `clear` (the saved chat replaces the
   // pending turn) and go away on the next send or when the chat changes. `failuresChatId` is null
   // until the chat is known.
@@ -29,6 +31,7 @@ interface StreamState {
   createdChatId: string | null;
   addImage: (image: Illustration) => void;
   setCreatedChatId: (id: string) => void;
+  markReasoning: () => void;
   failuresChatId: string | null;
   addFailure: (failure: IllustrationFailure) => void;
   settleFailures: (chatId: string) => void;
@@ -46,6 +49,7 @@ export const useStream = create<StreamState>((set) => ({
   sources: [],
   notes: [],
   query: null,
+  reasoningSeen: false,
   failures: [],
   images: [],
   createdChatId: null,
@@ -55,6 +59,7 @@ export const useStream = create<StreamState>((set) => ({
       if (!s.pending || !/^[0-9a-f]{32}$/.test(image.id) || s.images.some((i) => i.id === image.id)) return s;
       return { images: [...s.images, { id: image.id, prompt: image.prompt }] };
     }),
+  markReasoning: () => set((s) => (s.pending && !s.reasoningSeen ? { reasoningSeen: true } : s)),
   setCreatedChatId: (id) => set((s) => (s.pending ? { createdChatId: id } : s)),
   failuresChatId: null,
   addFailure: (failure) => set((s) => (s.pending ? { failures: [...s.failures, failure] } : s)),
@@ -62,10 +67,11 @@ export const useStream = create<StreamState>((set) => ({
   clearFailures: () => set({ failures: [], failuresChatId: null }),
   start: (chatId, text, images = [], illustrate = true) => {
     set({
-      pending: { text, chatId, images, illustrate, status: "thinking" },
+      pending: { text, chatId, images, illustrate, startedAt: Date.now(), status: "thinking" },
       sources: [],
       notes: [],
       query: null,
+      reasoningSeen: false,
       failures: [],
       images: [],
       createdChatId: null,
@@ -89,6 +95,7 @@ export const useStream = create<StreamState>((set) => ({
               chatId: s.pending.chatId,
               images: s.pending.images,
               illustrate: s.pending.illustrate,
+              startedAt: s.pending.startedAt,
               status: "error",
               error,
               ...(notice && { notice }),
@@ -97,6 +104,6 @@ export const useStream = create<StreamState>((set) => ({
         : s,
     ),
   clear: () => {
-    set({ pending: null, sources: [], notes: [], query: null, images: [], createdChatId: null });
+    set({ pending: null, sources: [], notes: [], query: null, reasoningSeen: false, images: [], createdChatId: null });
   },
 }));

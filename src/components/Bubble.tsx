@@ -9,6 +9,7 @@ import type { Row } from "@/lib/rows";
 import { AttachedImage } from "./AttachedImage";
 import { IllustrationNotes } from "./IllustrationNotes";
 import { Reply } from "./Reply";
+import { ThinkingStatus } from "./ThinkingStatus";
 
 interface Props {
   row: Row;
@@ -53,12 +54,17 @@ export const Bubble = memo(function Bubble({ row, chatId, failures, onHeight }: 
   }
   return (
     <View className="px-4 py-2" onLayout={report}>
-      <Reply
-        text={row.text}
-        streaming={row.state === "thinking" || row.state === "streaming"}
-        chatId={chatId}
-        images={row.images}
-      />
+      {/* No text yet: the status line stands in for the empty cursor, and gives way the moment text arrives. */}
+      {row.state === "thinking" && row.text === "" ? (
+        <ThinkingStatus />
+      ) : (
+        <Reply
+          text={row.text}
+          streaming={row.state === "thinking" || row.state === "streaming"}
+          chatId={chatId}
+          images={row.images}
+        />
+      )}
       <IllustrationNotes failures={failures} />
     </View>
   );

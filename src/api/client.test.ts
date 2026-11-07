@@ -79,6 +79,7 @@ describe("sendMessage", () => {
     onSources: vi.fn(),
     onIllustrationFailed: vi.fn(),
     onImage: vi.fn(),
+    onReasoning: vi.fn(),
     cursor: newCursor(),
   });
 
@@ -111,6 +112,7 @@ describe("event ids, images and resume", () => {
     onSources: vi.fn(),
     onIllustrationFailed: vi.fn(),
     onImage: vi.fn(),
+    onReasoning: vi.fn(),
     cursor: newCursor(),
   });
 
@@ -173,6 +175,14 @@ describe("event ids, images and resume", () => {
     }
     streamingFetch.mockResolvedValueOnce(json({ detail: "Last-Event-ID must be an event number" }, { status: 422 }));
     await expect(api.resumeMessage("c1", 3, options())).rejects.toMatchObject({ status: 422 });
+  });
+
+  it("reports reasoning as a bare signal and keeps none of its text", async () => {
+    streamingFetch.mockResolvedValue(sse(["reasoning", { text: "secret chain of thought" }, 0], ["reasoning", { text: "more" }, 1], ["done", { id: "c1" }, 2]));
+    const opts = options();
+    await api.sendMessage("c1", "hi", opts);
+    expect(opts.onReasoning).toHaveBeenCalledTimes(2);
+    expect(opts.onReasoning.mock.calls.flat()).toEqual([]);
   });
 
   it("posts to the cancel route", async () => {
