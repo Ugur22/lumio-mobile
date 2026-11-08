@@ -35,7 +35,9 @@ export function markdownStyles(c: Palette): MarkdownStyleMap {
     hr: { backgroundColor: c.border },
     bullet_list_icon: { color: c.muted, marginLeft: 4, marginRight: 8 },
     ordered_list_icon: { color: c.muted, marginLeft: 4, marginRight: 8 },
-    fence: { borderColor: c.border, borderRadius: 8, borderWidth: 1 },
+    // The library puts the code in a horizontal ScrollView, so fence_code only grows to the longest line; the fence's
+    // own colour fills the rest of the width.
+    fence: { backgroundColor: c.codeBg, borderColor: c.border, borderRadius: 8, borderWidth: 1 },
     fence_header: { backgroundColor: c.codeBg, borderBottomColor: "#3a342b" },
     fence_language_label: { color: "#a0968a" },
     fence_copy_text: { color: "#a0968a" },
