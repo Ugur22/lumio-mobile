@@ -1,5 +1,5 @@
 import { FlashList } from "@shopify/flash-list";
-import { LogOut, MessageSquare, Monitor, Moon, SquarePen, Sun } from "lucide-react-native";
+import { LogOut, MessageSquare, Monitor, MoreHorizontal, Moon, SquarePen, Sun } from "lucide-react-native";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,6 +21,10 @@ const MODES: { mode: ThemeMode; label: string; Icon: typeof Sun }[] = [
   { mode: "dark", label: "Dark", Icon: Moon },
 ];
 
+function nextMode(mode: ThemeMode): ThemeMode {
+  return MODES[(MODES.findIndex((m) => m.mode === mode) + 1) % MODES.length].mode;
+}
+
 // The drawer hands its own navigator to its content; useNavigation here would return the parent stack's.
 export function ChatDrawer({ navigation }: { navigation: { closeDrawer: () => void } }) {
   const insets = useSafeAreaInsets();
@@ -36,6 +40,7 @@ export function ChatDrawer({ navigation }: { navigation: { closeDrawer: () => vo
   const remove = useDeleteChat();
   const [renaming, setRenaming] = useState<ChatSummary | null>(null);
   const rows = useMemo(() => groupChats(chats ?? []), [chats]);
+  const current = MODES.find((m) => m.mode === themeMode) ?? MODES[0];
 
   const close = () => navigation.closeDrawer();
   const pick = (id: string | null) => {
@@ -115,25 +120,14 @@ export function ChatDrawer({ navigation }: { navigation: { closeDrawer: () => vo
                 <Text className={`flex-1 text-[16px] text-text ${active ? "font-medium" : ""}`} numberOfLines={1}>
                   {chat.title || "New chat"}
                 </Text>
+                <Pressable onPress={() => actions(chat)} hitSlop={10} accessibilityLabel="Chat options">
+                  <MoreHorizontal size={18} color={palette.muted} />
+                </Pressable>
               </Pressable>
             );
           }}
         />
       )}
-
-      <View className="mx-5 mb-3 flex-row rounded-xl bg-bubble p-1">
-        {MODES.map(({ mode, label, Icon }) => (
-          <Pressable
-            key={mode}
-            onPress={() => setThemeMode(mode)}
-            accessibilityLabel={`Appearance: ${label}`}
-            accessibilityState={{ selected: themeMode === mode }}
-            className={`h-9 flex-1 items-center justify-center rounded-lg ${themeMode === mode ? "bg-surface" : ""}`}
-          >
-            <Icon size={18} color={themeMode === mode ? palette.text : palette.muted} />
-          </Pressable>
-        ))}
-      </View>
 
       <View className="flex-row items-center justify-between border-t border-border px-5 pt-3">
         <View className="flex-1 flex-row items-center gap-3">
@@ -144,15 +138,24 @@ export function ChatDrawer({ navigation }: { navigation: { closeDrawer: () => vo
             {user?.username}
           </Text>
         </View>
-        <Pressable
-          onPress={() => void signOut()}
-          hitSlop={10}
-          accessibilityLabel="Sign out"
-          className="flex-row items-center gap-2"
-        >
-          <LogOut size={18} color={palette.muted} />
-          <Text className="text-muted">Sign out</Text>
-        </Pressable>
+        <View className="flex-row items-center gap-5">
+          <Pressable
+            onPress={() => setThemeMode(nextMode(themeMode))}
+            hitSlop={10}
+            accessibilityLabel={`Appearance: ${current.label}. Tap to change`}
+          >
+            <current.Icon size={20} color={palette.muted} />
+          </Pressable>
+          <Pressable
+            onPress={() => void signOut()}
+            hitSlop={10}
+            accessibilityLabel="Sign out"
+            className="flex-row items-center gap-2"
+          >
+            <LogOut size={18} color={palette.muted} />
+            <Text className="text-muted">Sign out</Text>
+          </Pressable>
+        </View>
       </View>
 
       {renaming ? (

@@ -3,13 +3,30 @@ import { DrawerActions } from "@react-navigation/native";
 import { useNavigation } from "expo-router";
 import { Menu, SquarePen } from "lucide-react-native";
 import { createContext, forwardRef, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { type NativeScrollEvent, type NativeSyntheticEvent, Pressable, type ScrollViewProps, Text, View } from "react-native";
+// From expo-router, not @react-navigation/drawer: expo-router bundles its own copy with its own contexts.
+import { useDrawerProgress, useDrawerStatus } from "expo-router/drawer";
+import * as Haptics from "expo-haptics";
+import {
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  Pressable,
+  type ScrollViewProps,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import {
   KeyboardChatScrollView,
   type KeyboardChatScrollViewRef,
   KeyboardStickyView,
 } from "react-native-keyboard-controller";
-import { type SharedValue, useSharedValue } from "react-native-reanimated";
+import Animated, {
+  Extrapolation,
+  interpolate,
+  type SharedValue,
+  useAnimatedStyle,
+  useSharedValue,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { ChatModelBody, IllustrationFailure } from "@/api/types";
@@ -48,6 +65,20 @@ export default function Chat() {
   const insets = useSafeAreaInsets();
   const palette = usePalette();
   const navigation = useNavigation();
+  const drawerProgress = useDrawerProgress();
+  const drawerStatus = useDrawerStatus();
+  const seenStatus = useRef(drawerStatus);
+  useEffect(() => {
+    if (seenStatus.current === drawerStatus) return;
+    seenStatus.current = drawerStatus;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [drawerStatus]);
+  // The chat shrinks and rounds as the drawer opens; the dim is drawn inside it so the rounded corners clip it.
+  const sceneStyle = useAnimatedStyle(() => ({
+    borderRadius: interpolate(drawerProgress.value, [0, 1], [0, 28], Extrapolation.CLAMP),
+    transform: [{ scale: interpolate(drawerProgress.value, [0, 1], [1, 0.94], Extrapolation.CLAMP) }],
+  }));
+  const dimStyle = useAnimatedStyle(() => ({ opacity: drawerProgress.value * 0.2 }));
   const chatId = useCurrent((s) => s.chatId);
   const epoch = useCurrent((s) => s.epoch);
   const { data: chat, isError: loadFailed, refetch } = useChat(chatId);
@@ -215,7 +246,7 @@ export default function Chat() {
   const openDrawer = () => navigation.dispatch(DrawerActions.openDrawer());
 
   return (
-    <View className="flex-1 bg-bg" style={{ paddingTop: insets.top }}>
+    <Animated.View className="flex-1 bg-bg" style={[{ paddingTop: insets.top, overflow: "hidden" }, sceneStyle]}>
       <View className="min-h-14 flex-row items-center justify-between px-4 py-1">
         <Pressable onPress={openDrawer} hitSlop={12} accessibilityLabel="Chats">
           <Menu size={24} color={palette.text} />
@@ -304,6 +335,7 @@ export default function Chat() {
         onOpenProviders={() => useSheets.getState().setProviders(true)}
         providerName={activeProfile?.name ?? null}
       />
-    </View>
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: "#000" }, dimStyle]} />
+    </Animated.View>
   );
 }
