@@ -1,5 +1,6 @@
 import "../global.css";
 import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
@@ -13,6 +14,10 @@ import { useCurrent } from "@/store/current";
 import { useSession } from "@/store/session";
 import { useStream } from "@/store/stream";
 import { useTheme } from "@/store/theme";
+
+// Hold the native splash until the stored login and theme are read, so it hands over straight to the right screen.
+void SplashScreen.preventAutoHideAsync();
+SplashScreen.setOptions({ duration: 300, fade: true });
 
 export default function RootLayout() {
   const status = useSession((s) => s.status);
@@ -34,9 +39,14 @@ export default function RootLayout() {
     }
   }, [status]);
 
+  const ready = status !== "pending" && themeReady;
+  useEffect(() => {
+    if (ready) SplashScreen.hide();
+  }, [ready]);
+
   // Nothing renders until the stored login and theme have been read, so neither the login screen nor the wrong
   // colours flash.
-  if (status === "pending" || !themeReady) return <View className="flex-1 bg-bg" />;
+  if (!ready) return <View className="flex-1 bg-bg" />;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
