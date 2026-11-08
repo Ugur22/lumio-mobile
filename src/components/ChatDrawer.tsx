@@ -1,11 +1,12 @@
 import { FlashList } from "@shopify/flash-list";
-import { LogOut, Monitor, Moon, Sun, SquarePen } from "lucide-react-native";
-import { useState } from "react";
+import { LogOut, MessageSquare, Monitor, Moon, SquarePen, Sun } from "lucide-react-native";
+import { useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { ChatSummary } from "@/api/types";
 import { useChatList, useDeleteChat, useRenameChat } from "@/hooks/useChats";
+import { groupChats } from "@/lib/chatGroups";
 import { usePalette } from "@/lib/theme";
 import type { ThemeMode } from "@/lib/themeMode";
 import { useCurrent } from "@/store/current";
@@ -34,6 +35,7 @@ export function ChatDrawer({ navigation }: { navigation: { closeDrawer: () => vo
   const rename = useRenameChat();
   const remove = useDeleteChat();
   const [renaming, setRenaming] = useState<ChatSummary | null>(null);
+  const rows = useMemo(() => groupChats(chats ?? []), [chats]);
 
   const close = () => navigation.closeDrawer();
   const pick = (id: string | null) => {
@@ -83,20 +85,39 @@ export function ChatDrawer({ navigation }: { navigation: { closeDrawer: () => vo
         </Pressable>
       ) : (
         <FlashList
-          data={chats}
-          keyExtractor={(c) => c.id}
-          ListEmptyComponent={<Text className="mx-5 mt-6 text-muted">No chats yet.</Text>}
-          renderItem={({ item }) => (
-            <Pressable
-              onPress={() => pick(item.id)}
-              onLongPress={() => actions(item)}
-              className={`mx-2 rounded-xl px-3 py-3 ${item.id === chatId ? "bg-bubble" : ""}`}
-            >
-              <Text className="text-[16px] text-text" numberOfLines={1}>
-                {item.title || "New chat"}
-              </Text>
-            </Pressable>
-          )}
+          data={rows}
+          keyExtractor={(r) => r.key}
+          getItemType={(r) => r.kind}
+          ListEmptyComponent={
+            <View className="mt-16 items-center gap-3">
+              <MessageSquare size={28} color={palette.muted} />
+              <Text className="text-muted">No chats yet</Text>
+            </View>
+          }
+          renderItem={({ item }) => {
+            if (item.kind === "header") {
+              return (
+                <Text className="px-5 pb-1 pt-4 text-xs font-semibold uppercase tracking-wider text-muted">
+                  {item.label}
+                </Text>
+              );
+            }
+            const chat = item.chat;
+            const active = chat.id === chatId;
+            return (
+              <Pressable
+                onPress={() => pick(chat.id)}
+                onLongPress={() => actions(chat)}
+                className={`mx-2 flex-row items-center gap-3 rounded-xl px-3 py-3 active:bg-bubble ${active ? "bg-bubble" : ""}`}
+              >
+                <View className={`h-5 w-[3px] rounded-full ${active ? "bg-accent" : "bg-transparent"}`} />
+                <MessageSquare size={18} color={active ? palette.accent : palette.muted} />
+                <Text className={`flex-1 text-[16px] text-text ${active ? "font-medium" : ""}`} numberOfLines={1}>
+                  {chat.title || "New chat"}
+                </Text>
+              </Pressable>
+            );
+          }}
         />
       )}
 
@@ -115,9 +136,14 @@ export function ChatDrawer({ navigation }: { navigation: { closeDrawer: () => vo
       </View>
 
       <View className="flex-row items-center justify-between border-t border-border px-5 pt-3">
-        <Text className="flex-1 text-muted" numberOfLines={1}>
-          {user?.username}
-        </Text>
+        <View className="flex-1 flex-row items-center gap-3">
+          <View className="h-8 w-8 items-center justify-center rounded-full bg-accent">
+            <Text className="text-sm font-semibold uppercase text-on-accent">{user?.username?.[0] ?? "?"}</Text>
+          </View>
+          <Text className="flex-1 text-text" numberOfLines={1}>
+            {user?.username}
+          </Text>
+        </View>
         <Pressable
           onPress={() => void signOut()}
           hitSlop={10}
