@@ -1,0 +1,18 @@
+# End-to-end check: sign in (when needed), send a message and wait for the reply to finish. Run with `npm run e2e`.
+# Needs the iOS Simulator booted with Expo Go, `npx expo start` running, and MAESTRO_DEMO_USER / MAESTRO_DEMO_PASS.
+appId: host.exp.Exponent
+---
+- runFlow: subflows/signed-in.yaml
+- tapOn: "Message"
+- inputText: "Reply with the single word: ready"
+- tapOn: "Send"
+# Stop shows while the reply streams and turns back into Send when it is done. A short reply can finish before the first
+# check, so seeing Stop is optional; waiting for it to go away is what ends the turn.
+- extendedWaitUntil:
+    visible: "Stop"
+    timeout: 5000
+    optional: true
+- extendedWaitUntil:
+    notVisible: "Stop"
+    timeout: 120000
+- assertVisible: "Reply with the single word: ready"
