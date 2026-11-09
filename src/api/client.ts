@@ -16,6 +16,7 @@ import type {
   LoginBody,
   ModelsQuery,
   ModelsResult,
+  NewProfileBody,
   OAuthExchangeBody,
   ProfileList,
   SourceRef,
@@ -266,5 +267,6 @@ export const api = {
   listProfiles: () => request<ProfileList>("/profiles"),
   listModels: (body: ModelsQuery) =>
     request<ModelsResult>("/profiles/models", { method: "POST", body: JSON.stringify(body) }),
+  createProfile: (body: NewProfileBody) => request<ProfileList>("/profiles", { method: "POST", body: JSON.stringify(body) }),
   activateProfile: (id: string) => request<ProfileList>(`/profiles/${id}/activate`, { method: "POST" }),
 };

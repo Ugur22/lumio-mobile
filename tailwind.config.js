@@ -6,6 +6,8 @@ module.exports = {
   presets: [require("nativewind/preset")],
   theme: {
     extend: {
+      // One weight per family: React Native picks a custom font by its family name, not by font-weight.
+      fontFamily: { heading: ["Literata_600SemiBold"] },
       // Same token names as frontend/tailwind.config.ts, so a class means the same thing on both apps.
       colors: {
         bg: v("bg"),
