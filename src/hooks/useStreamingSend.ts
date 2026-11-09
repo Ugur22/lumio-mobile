@@ -1,10 +1,11 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 import type { Chat, ChatModelBody, ImageUpload } from "@/api/types";
 import { api } from "@/api/client";
 import { trialFailure, type TrialFailure } from "@/lib/trial";
 import { useStream } from "@/store/stream";
 
-import { ReplyStopped, useSendMessage } from "./useChats";
+import { ReplyStopped, chatKey, useSendMessage } from "./useChats";
 
 // A picked photo: what is uploaded, and the local file shown as its thumbnail.
 export interface Attachment {
@@ -26,6 +27,7 @@ export function useStreamingSend({ onTrialRefused }: Options = {}) {
     refused.current = onTrialRefused;
   });
   const { mutate, isPending } = useSendMessage();
+  const qc = useQueryClient();
   const abort = useRef<AbortController | null>(null);
   const streamed = useRef("");
   const activeChat = useRef<string | null>(null);
@@ -63,6 +65,7 @@ export function useStreamingSend({ onTrialRefused }: Options = {}) {
         content,
         attachments.map((a) => a.preview),
         illustrate,
+        chatId === null ? 0 : (qc.getQueryData<Chat>(chatKey(chatId))?.messages.length ?? 0),
       );
       mutate(
         {
@@ -107,7 +110,7 @@ export function useStreamingSend({ onTrialRefused }: Options = {}) {
         },
       );
     },
-    [mutate, onDelta, endStream],
+    [mutate, qc, onDelta, endStream],
   );
 
   // The reply runs on the server and survives a dropped connection, so Stop has to tell the server. It then ends the

@@ -5,8 +5,10 @@ import type { Illustration } from "@/lib/illustrations";
 // A discriminated union, so consumers can match it exhaustively. "Succeeded" is `pending: null`:
 // the saved chat then supplies the reply.
 // `images` are the local file URIs of the thumbnails.
+// `baseCount`: how many saved messages the chat had when the turn started, which is how the screen knows the saved chat
+// has taken the turn over (see `activePending` in lib/rows.ts).
 // `illustrate`: the turn was sent with pictures on. Off, the model's leftover [[image: ...]] directives get no picture.
-export type Pending = { text: string; chatId: string | null; images: string[]; illustrate: boolean; startedAt: number } & (
+export type Pending = { text: string; chatId: string | null; images: string[]; illustrate: boolean; startedAt: number; baseCount: number } & (
   | { status: "thinking" }
   | { status: "streaming"; reply: string }
   // `notice`: the trial refused the send, which is said calmly rather than as a failure.
@@ -36,7 +38,7 @@ interface StreamState {
   addFailure: (failure: IllustrationFailure) => void;
   settleFailures: (chatId: string) => void;
   clearFailures: () => void;
-  start: (chatId: string | null, text: string, images?: string[], illustrate?: boolean) => void;
+  start: (chatId: string | null, text: string, images?: string[], illustrate?: boolean, baseCount?: number) => void;
   setReply: (reply: string) => void;
   setSources: (sources: SourceRef[], notes: string[], query?: string | null) => void;
   fail: (error: string, notice?: boolean) => void;
@@ -65,9 +67,9 @@ export const useStream = create<StreamState>((set) => ({
   addFailure: (failure) => set((s) => (s.pending ? { failures: [...s.failures, failure] } : s)),
   settleFailures: (chatId) => set((s) => (s.failures.length ? { failuresChatId: chatId } : s)),
   clearFailures: () => set({ failures: [], failuresChatId: null }),
-  start: (chatId, text, images = [], illustrate = true) => {
+  start: (chatId, text, images = [], illustrate = true, baseCount = 0) => {
     set({
-      pending: { text, chatId, images, illustrate, startedAt: Date.now(), status: "thinking" },
+      pending: { text, chatId, images, illustrate, startedAt: Date.now(), baseCount, status: "thinking" },
       sources: [],
       notes: [],
       query: null,
@@ -96,6 +98,7 @@ export const useStream = create<StreamState>((set) => ({
               images: s.pending.images,
               illustrate: s.pending.illustrate,
               startedAt: s.pending.startedAt,
+              baseCount: s.pending.baseCount,
               status: "error",
               error,
               ...(notice && { notice }),
