@@ -178,6 +178,7 @@ export function Composer({ streaming, onSend, onStop, onHeight, canAttach, provi
           <Pressable
             onPress={streaming ? onStop : submit}
             disabled={!streaming && !canSend}
+            accessibilityLabel={streaming ? "Stop" : "Send"}
             className={`h-10 w-10 items-center justify-center rounded-full ${streaming || canSend ? "bg-accent" : "bg-border"}`}
           >
             {streaming ? <Square size={16} color="#fdfbf6" fill="#fdfbf6" /> : <ArrowUp size={20} color="#fdfbf6" />}

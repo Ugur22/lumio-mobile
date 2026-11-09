@@ -1,0 +1,49 @@
+# Shared setup: opens Lumio in Expo Go, signs in when the login screen shows, dismisses iOS's Save Password prompt and
+# switches to the faster flash model. Needs MAESTRO_DEMO_USER and MAESTRO_DEMO_PASS when it has to sign in.
+appId: host.exp.Exponent
+---
+- launchApp
+- openLink: exp://127.0.0.1:8081
+# Expo Go may ask before opening the project the first time.
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+# Maestro matches text as a regex: the login screen has "Username", a signed-in chat has "Message".
+- extendedWaitUntil:
+    visible: "Username|Message"
+    timeout: 60000
+- runFlow:
+    when:
+      visible: "Username"
+    commands:
+      - tapOn: "Username"
+      - inputText: ${MAESTRO_DEMO_USER}
+      - tapOn: "Password"
+      - inputText: ${MAESTRO_DEMO_PASS}
+      - tapOn: "Sign in"
+# iOS offers to save the password after sign-in and covers the chat until it is answered.
+- runFlow:
+    when:
+      visible: "Not Now"
+    commands:
+      - tapOn: "Not Now"
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 30000
+# The pro model reasons for half a minute before the first word, which makes a long demo; use flash. The header shows the
+# current model, and tapping it opens the Provider and model sheet. Skipped when the chat is already on flash.
+- runFlow:
+    when:
+      visible: ".*deepseek-v4-pro.*"
+    commands:
+      - tapOn: ".*deepseek-v4-pro.*"
+      - tapOn: "deepseek-flash"
+      # Picking a model may already close the sheet.
+      - tapOn:
+          text: "Done"
+          optional: true
+- extendedWaitUntil:
+    visible: ".*deepseek-flash.*"
+    timeout: 10000

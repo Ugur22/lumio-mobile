@@ -56,7 +56,8 @@
     "lint": "expo lint",
     "test": "vitest run",
     "sync:api": "scripts/sync-api.sh",
-    "check:api": "scripts/check-api.sh"
+    "check:api": "scripts/check-api.sh",
+    "e2e": "maestro test .maestro/smoke.yaml"
   },
   "private": true,
   "overrides": {

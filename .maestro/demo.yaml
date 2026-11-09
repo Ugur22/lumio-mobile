@@ -1,0 +1,36 @@
+# Records the README demo; run through scripts/record-demo.sh. Setup is shared with smoke.yaml and happens before the
+# recording starts, so the video opens on an empty chat. Keep the prompts short: the video should stay well under 30 seconds.
+appId: host.exp.Exponent
+---
+- runFlow: subflows/signed-in.yaml
+- startRecording: demo-raw
+- tapOn: "Message"
+- inputText: "Hey! Write a two-sentence story about a lighthouse keeper."
+- tapOn: "Send"
+# Stop shows while the reply streams and turns back into Send when it is done. A short reply can finish before the first
+# check, so seeing Stop is optional; waiting for it to go away is what ends the turn.
+- extendedWaitUntil:
+    visible: "Stop"
+    timeout: 5000
+    optional: true
+- extendedWaitUntil:
+    notVisible: "Stop"
+    timeout: 120000
+- tapOn: "Message"
+- inputText: "Nice. Now a twist ending, one sentence."
+- tapOn: "Send"
+# Stop shows while the reply streams and turns back into Send when it is done. A short reply can finish before the first
+# check, so seeing Stop is optional; waiting for it to go away is what ends the turn.
+- extendedWaitUntil:
+    visible: "Stop"
+    timeout: 5000
+    optional: true
+- extendedWaitUntil:
+    notVisible: "Stop"
+    timeout: 120000
+# Maestro has no sleep: waiting for text that never appears holds the finished reply on screen for the last seconds.
+- extendedWaitUntil:
+    visible: "this text is never shown"
+    timeout: 3000
+    optional: true
+- stopRecording
