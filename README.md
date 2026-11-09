@@ -2,7 +2,11 @@
 
 A native iOS and Android chat app for any OpenAI-compatible API, built with Expo and React Native. It is the mobile client of [Lumio](https://github.com/Ugur22/lumio), which provides the backend and the web app.
 
-<p align="center"><img src="docs/demo.gif" width="300" alt="Chatting in the Lumio app: a short story and a follow-up with a twist ending, streamed live"></p>
+<p align="center">
+  <img src="docs/demo.gif" width="260" alt="Chatting in the Lumio app: a short story and a follow-up with a twist ending, streamed live">
+  &nbsp;&nbsp;
+  <img src="docs/login.png" width="260" alt="The Lumio login screen: username and password, Continue with Google or GitHub, and a free trial">
+</p>
 
 ## What it does
 
