@@ -64,3 +64,5 @@ npm run check:api                         # fails if api.gen.ts differs from lum
 ```
 
 `check:api` needs the network, so it runs in CI (`.github/workflows/ci.yml`) and not in the Stop hook. When it fails, run `npm run sync:api`, fix any type errors it causes in `src/`, and commit the result. The backend only adds fields, because older app versions stay installed.
+
+CI also runs `check:api` daily, so a backend API change shows up as a failed run within a day. The fix is `npm run sync:api`, then fix any type errors.
