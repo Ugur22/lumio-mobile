@@ -43,4 +43,10 @@ start=${TRIM_START:-$(ffmpeg -hide_banner -i "$raw" -vf "fps=4,scale=iw/4:-1,fre
 ffmpeg -y -loglevel error -ss "${start:-0}" -i "$raw" \
   -vf "$bezel_crop,fps=12,scale=420:-1:flags=lanczos,$bezel_mask,split[a][b];[a]palettegen=reserve_transparent=1[p];[b][p]paletteuse=alpha_threshold=128" \
   docs/demo.gif
+# ffmpeg writes every frame in full while the GIF has transparency; gifsicle stores only what changes between frames.
+if command -v gifsicle > /dev/null; then
+  gifsicle -O3 --batch docs/demo.gif
+else
+  echo "gifsicle not installed (brew install gifsicle): the GIF stays large" >&2
+fi
 echo "wrote docs/demo.gif ($(du -h docs/demo.gif | cut -f1))"
