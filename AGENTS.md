@@ -1,5 +1,26 @@
 This is an Expo/React Native mobile application. Prioritize mobile-first patterns, performance, and cross-platform compatibility.
 
+## Project rules
+
+Native client for the Lumio API (backend and web: Ugur22/lumio). The same rules as that repo's CLAUDE.md apply where they fit.
+
+- No commits without explicit approval. `main` only takes changes through a PR, and `gh` fails inside Claude's sandbox, so never open one: after a push, end with a ready-to-run `gh pr create` command for the user.
+- Anything non-trivial: plan first, then wait for approval.
+- **API contract:** `src/api/api.gen.ts` is generated from the backend's `openapi.json`. Never edit it by hand; run `npm run sync:api` (`LUMIO_API_REF=<tag|sha>` for another ref), then fix the type errors it causes in `src/`. `src/api/types.ts` gives the generated shapes their short names and holds the SSE payloads the schema cannot describe. The backend only adds fields, because older app versions stay installed, so never rely on a field being removed or renamed.
+- **Done means green:** `npm run typecheck`, `npm test` and `npm run lint`. The Stop hook (`scripts/check.sh`) runs the first two. `npm run check:api` needs the network, so it runs in CI only (`.github/workflows/ci.yml`), not in the hook. Do not edit the hook or the CI workflow to loosen a check.
+- Tokens and the API key live in `expo-secure-store`, never in AsyncStorage, logs or committed files.
+- Reply text from the model is untrusted: it is always rendered through the Markdown and HTML renderers, never as raw markup.
+- Develop and test in Expo Go. Do not add a library that needs a development build without telling the user first.
+
+## Components
+
+- Before writing UI, look in `src/components` and `src/hooks`. Reuse or extend a component with a prop instead of copying it.
+- Extract a component when the same markup appears in two places. Generic building blocks (button, dialog, sheet) go in `src/components/ui/` the first time one is needed; feature components stay in `src/components/`.
+- One component per file, PascalCase. Files in `src/app` only compose components and handle navigation.
+- Keep logic out of components: pure logic in `src/lib` with a `.test.ts` next to it, hooks in `src/hooks`, shared state in `src/store`.
+- Style with NativeWind classes and the theme tokens from `tailwind.config.js` (`bg`, `panel`, `text`, `muted`, `accent`, …), which match the web app's names. No hardcoded colors and no `StyleSheet.create`, so light and dark mode keep working.
+- Past about 400 lines, split a component before adding more (a guideline, not checked here).
+
 ## Expo has changed — do not trust your training data
 
 Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or removed. Before writing any code that touches an Expo, EAS, or React Native API:
