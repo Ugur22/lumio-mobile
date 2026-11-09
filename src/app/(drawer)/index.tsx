@@ -43,7 +43,7 @@ import type { Attachment } from "@/lib/images";
 import { blankSpaceFor } from "@/lib/blankSpace";
 import { jumpVisible } from "@/lib/jump";
 import { effectiveProfile } from "@/lib/providers";
-import { buildRows, nextTurnKeys } from "@/lib/rows";
+import { activePending, buildRows, nextTurnKeys } from "@/lib/rows";
 import { usePalette } from "@/lib/theme";
 import { bannerText, isManaged, sendBlocked, trialBanner } from "@/lib/trial";
 import { useCurrent } from "@/store/current";
@@ -86,7 +86,7 @@ export default function Chat() {
   const failures = useStream((s) => s.failures);
   const failuresChatId = useStream((s) => s.failuresChatId);
   // A turn belongs to the chat it was sent in; opening another chat must not show it there.
-  const pending = storedPending && storedPending.chatId === chatId ? storedPending : null;
+  const pending = activePending(chat?.messages, storedPending && storedPending.chatId === chatId ? storedPending : null);
   const { send: sendMessage, stop } = useStreamingSend({
     onTrialRefused: (failure) => failure.kind === "ended" && useSheets.getState().setProviders(true),
   });

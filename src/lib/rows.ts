@@ -17,9 +17,18 @@ export interface Row {
 
 const rowKey = (index: number) => `m-${index}`;
 
+// The turn in flight, or null once the saved chat has it. The saved chat reaches the screen before `pending` is cleared
+// (the send mutation waits on a refetch in between), and for that moment the turn would be drawn twice. An error stays:
+// nothing was saved for it.
+export function activePending(messages: readonly Message[] | undefined, pending: Pending | null): Pending | null {
+  if (!pending || pending.status === "error") return pending;
+  return (messages?.length ?? 0) >= pending.baseCount + 2 ? null : pending;
+}
+
 // The saved messages, then the turn in flight (the sent text and the reply so far). Once the server has saved the turn
 // `pending` is cleared and the same positions come from `messages`.
-export function buildRows(messages: readonly Message[] | undefined, pending: Pending | null): Row[] {
+export function buildRows(messages: readonly Message[] | undefined, inFlight: Pending | null): Row[] {
+  const pending = activePending(messages, inFlight);
   const rows: Row[] = (messages ?? []).map((m, i) => ({
     key: rowKey(i),
     role: m.role,

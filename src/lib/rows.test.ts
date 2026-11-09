@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Message } from "@/api/types";
 import type { Pending } from "@/store/stream";
 
-import { buildRows, nextTurnKeys } from "./rows";
+import { activePending, buildRows, nextTurnKeys } from "./rows";
 
 const msg = (role: Message["role"], content: string): Message => ({
   role,
@@ -14,7 +14,8 @@ const msg = (role: Message["role"], content: string): Message => ({
   sources: [],
 });
 
-const pending = (extra: object): Pending => ({ text: "hi", chatId: "c1", images: [], ...extra }) as unknown as Pending;
+// `baseCount`: the saved messages the chat had when the turn started (two here, as in most tests below).
+const pending = (extra: object): Pending => ({ text: "hi", chatId: "c1", images: [], baseCount: 2, ...extra }) as unknown as Pending;
 
 describe("buildRows", () => {
   it("is empty for a blank chat", () => {
@@ -47,5 +48,54 @@ describe("buildRows", () => {
     const after = buildRows([msg("user", "hi"), msg("assistant", "x")], null).map((r) => r.key);
     expect(after).toEqual(during);
     expect(nextTurnKeys(0)).toEqual({ userKey: "m-0", replyKey: "m-1" });
+  });
+
+  // The saved chat reaches the screen a render before `pending` is cleared (the send mutation waits on a refetch in
+  // between), so for that moment the turn is in both and used to be drawn twice.
+  it("draws the turn once while the saved chat already has it and pending is not cleared yet", () => {
+    const saved = [msg("user", "a"), msg("assistant", "b"), msg("user", "hi"), msg("assistant", "answer")];
+    const rows = buildRows(saved, pending({ status: "streaming", reply: "ans" }));
+    expect(rows.map((r) => [r.key, r.role, r.text, r.state])).toEqual([
+      ["m-0", "user", "a", "done"],
+      ["m-1", "assistant", "b", "done"],
+      ["m-2", "user", "hi", "done"],
+      ["m-3", "assistant", "answer", "done"],
+    ]);
+  });
+
+  describe("activePending", () => {
+    const saved = (n: number) => Array.from({ length: n }, (_, i) => msg(i % 2 ? "assistant" : "user", `m${i}`));
+
+    it("keeps the turn while the saved chat does not have it yet", () => {
+      const p = pending({ status: "streaming", reply: "x" });
+      expect(activePending(saved(2), p)).toBe(p);
+      expect(activePending(saved(3), p)).toBe(p);
+    });
+
+    it("drops the turn once the saved chat has it", () => {
+      expect(activePending(saved(4), pending({ status: "streaming", reply: "x" }))).toBeNull();
+      expect(activePending(saved(4), pending({ status: "thinking" }))).toBeNull();
+    });
+
+    it("keeps an error, because nothing was saved for it", () => {
+      const p = pending({ status: "error", error: "boom" });
+      expect(activePending(saved(6), p)).toBe(p);
+    });
+
+    it("counts from zero for a chat the first message creates", () => {
+      const p = pending({ status: "streaming", reply: "x", baseCount: 0 });
+      expect(activePending(undefined, p)).toBe(p);
+      expect(activePending(saved(2), p)).toBeNull();
+    });
+
+    it("passes null through", () => {
+      expect(activePending(saved(4), null)).toBeNull();
+    });
+  });
+
+  it("does not hide a turn that is still in flight when the saved chat is shorter", () => {
+    const rows = buildRows([msg("user", "a"), msg("assistant", "b")], pending({ status: "streaming", reply: "ans" }));
+    expect(rows.map((r) => r.key)).toEqual(["m-0", "m-1", "m-2", "m-3"]);
+    expect(rows[3]).toMatchObject({ text: "ans", state: "streaming" });
   });
 });
