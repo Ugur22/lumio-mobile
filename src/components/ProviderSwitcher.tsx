@@ -1,6 +1,6 @@
-import { Check, ChevronDown } from "lucide-react-native";
-import { useMemo, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, SectionList, Text, TextInput, View } from "react-native";
+import { Check, ChevronDown, Lock, Plus } from "lucide-react-native";
+import { useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Modal, Platform, Pressable, SectionList, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { ChatModelBody } from "@/api/types";
@@ -39,6 +39,7 @@ export function ProviderSwitcher({ chatId, pendingModel, onPendingModel, disable
   const open = useSheets((s) => s.providers);
   const setOpen = useSheets((s) => s.setProviders);
   const trial = useTrial().data;
+  const addAfterClose = useRef(false);
   const [query, setQuery] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -50,7 +51,13 @@ export function ProviderSwitcher({ chatId, pendingModel, onPendingModel, disable
 
   if (isError) return <Text className="text-center text-xs text-warn-bar">Providers unavailable</Text>;
   if (!profiles) return null;
-  if (!active) return <Text className="text-center text-xs text-muted">Add a provider on the website</Text>;
+  if (!active) {
+    return (
+      <Pressable onPress={() => useSheets.getState().setAddProvider(true)} hitSlop={8} accessibilityRole="button" className="self-center rounded-full px-2 py-0.5">
+        <Text className="text-xs text-accent">Add a provider</Text>
+      </Pressable>
+    );
+  }
 
   const managed = isManaged(active);
   const banner = trialBanner(trial);
@@ -65,6 +72,13 @@ export function ProviderSwitcher({ chatId, pendingModel, onPendingModel, disable
     setOpen(false);
     setQuery("");
     setActionError(null);
+  };
+
+  // iOS cannot present a sheet while another is still dismissing, so the add flow opens from onDismiss there.
+  const openAdd = () => {
+    if (Platform.OS === "ios") addAfterClose.current = true;
+    close();
+    if (Platform.OS !== "ios") useSheets.getState().setAddProvider(true);
   };
 
   const changeProvider = (id: string) => {
@@ -118,7 +132,17 @@ export function ProviderSwitcher({ chatId, pendingModel, onPendingModel, disable
         <ChevronDown size={12} color={palette.muted} />
       </Pressable>
 
-      <Modal visible={open} animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
+      <Modal
+        visible={open}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={close}
+        onDismiss={() => {
+          if (!addAfterClose.current) return;
+          addAfterClose.current = false;
+          useSheets.getState().setAddProvider(true);
+        }}
+      >
         <View className="flex-1 bg-bg" style={{ paddingBottom: insets.bottom }}>
           <View className="flex-row items-center justify-between px-5 pb-3 pt-4">
             <Text className="text-lg font-semibold text-text">Provider and model</Text>
@@ -153,7 +177,24 @@ export function ProviderSwitcher({ chatId, pendingModel, onPendingModel, disable
               {ended ? `. ${hasOwnProvider(profiles) ? "Pick your own provider above to continue." : TRIAL_ENDED}` : ""}
             </Text>
           ) : null}
-          {locked ? <Text className="px-5 pt-1 text-[13px] text-muted">{TRIAL_LOCKED}</Text> : null}
+          {locked ? (
+            <View className="mx-4 mt-3 flex-row items-center gap-3 rounded-xl border border-dashed border-border px-4 py-3 opacity-80">
+              <Lock size={18} color={palette.muted} />
+              <View className="min-w-0 flex-1">
+                <Text className="text-[16px] text-muted">Add provider</Text>
+                <Text className="text-[12px] text-muted">{TRIAL_LOCKED}</Text>
+              </View>
+            </View>
+          ) : (
+            <Pressable
+              onPress={openAdd}
+              accessibilityRole="button"
+              className="mx-4 mt-3 flex-row items-center gap-3 rounded-xl border border-dashed border-border px-4 py-3"
+            >
+              <Plus size={18} color={palette.accent} />
+              <Text className="text-[16px] font-medium text-accent">Add provider</Text>
+            </Pressable>
+          )}
           {managed ? (
             <Text className="px-5 pt-5 text-[13px] text-muted">
               The free trial uses {active.model}. You can pick a model once you add your own provider on the website.

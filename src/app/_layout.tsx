@@ -1,4 +1,5 @@
 import "../global.css";
+import { Literata_600SemiBold, useFonts } from "@expo-google-fonts/literata";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -22,6 +23,8 @@ SplashScreen.setOptions({ duration: 300, fade: true });
 export default function RootLayout() {
   const status = useSession((s) => s.status);
   const themeReady = useTheme((s) => s.ready);
+  // A font that fails to load must not hold the app back: the headline falls back to the system font.
+  const [fontsLoaded, fontError] = useFonts({ Literata_600SemiBold });
 
   useEffect(() => {
     setUnauthorizedHandler(() => useSession.getState().expire());
@@ -39,7 +42,7 @@ export default function RootLayout() {
     }
   }, [status]);
 
-  const ready = status !== "pending" && themeReady;
+  const ready = status !== "pending" && themeReady && (fontsLoaded || fontError !== null);
   useEffect(() => {
     if (ready) SplashScreen.hide();
   }, [ready]);
