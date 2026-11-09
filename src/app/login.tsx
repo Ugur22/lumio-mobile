@@ -1,8 +1,10 @@
 import * as Linking from "expo-linking";
+import { Sparkles } from "lucide-react-native";
 import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
+import { ProviderIcon } from "@/components/ProviderIcon";
 import { DEFAULT_SERVER } from "@/lib/config";
 import { authErrorMessage, normalizeUsername, usernameHint } from "@/lib/auth";
 import { OAUTH_PROVIDERS, type OAuthProvider, authErrorText, isSignedInNotice, oauthStartUrl, parseAuthRedirect } from "@/lib/oauth";
@@ -68,25 +70,32 @@ export default function Login() {
   const input = "rounded-xl border border-border bg-surface px-4 py-3 text-[17px] text-text";
   return (
     <KeyboardAvoidingView className="flex-1 bg-bg" behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerClassName="flex-grow justify-center gap-4 px-6 py-12" keyboardShouldPersistTaps="handled">
-        <Text className="mb-2 text-4xl font-semibold text-text">Lumio</Text>
+      <ScrollView contentContainerClassName="flex-grow gap-4 px-6 pb-10 pt-4" keyboardShouldPersistTaps="handled">
+        <View className="min-h-[160px] flex-1 items-center justify-center">
+          <Image source={require("../../assets/splash-icon.png")} accessibilityLabel="Lumio" className="h-36 w-36" />
+        </View>
         {notice ? <Text className="text-caution">{notice}</Text> : null}
         {editingServer ? (
-          <TextInput
-            className={input}
-            value={server}
-            onChangeText={setServer}
-            placeholder="Server address"
-            placeholderTextColor={palette.muted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            textContentType="URL"
-          />
+          <View className="gap-2">
+            <TextInput
+              className={input}
+              value={server}
+              onChangeText={setServer}
+              placeholder="Server address"
+              placeholderTextColor={palette.muted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              textContentType="URL"
+            />
+            <Text className="text-[13px] text-muted">
+              The Lumio server your account is on. Only change it if you run your own, for example http://192.168.1.20:8000 for a local one.
+            </Text>
+          </View>
         ) : (
           <View className="flex-row items-center justify-between">
             <Text className="flex-1 text-muted" numberOfLines={1}>
-              {server.replace(/^https?:\/\//, "")}
+              Server: <Text className="text-text">{server.replace(/^https?:\/\//, "")}</Text>
             </Text>
             <Pressable onPress={() => setEditingServer(true)} hitSlop={8}>
               <Text className="text-accent">Change</Text>
@@ -118,19 +127,23 @@ export default function Login() {
           {busy ? <ActivityIndicator color={palette.bg} /> : <Text className="text-[17px] font-medium text-on-accent">Sign in</Text>}
         </Pressable>
         <View className="mt-4 gap-3 border-t border-border pt-5">
+          <View className="flex-row items-center justify-center gap-2">
+            <Sparkles size={16} color={palette.accent} />
+            <Text className="text-[15px] font-medium text-text">{TRIAL_PITCH}</Text>
+          </View>
           {OAUTH_PROVIDERS.map(({ id, label }) => (
             <Pressable
               key={id}
               onPress={() => void continueWith(id)}
               disabled={busy || oauthBusy}
               accessibilityRole="button"
-              className="h-12 items-center justify-center rounded-xl border border-border bg-surface disabled:opacity-60"
+              className="h-12 flex-row items-center justify-center gap-3 rounded-xl border border-border bg-surface disabled:opacity-60"
             >
+              <ProviderIcon provider={id} color={palette.text} />
               <Text className="text-[16px] font-medium text-text">{label}</Text>
             </Pressable>
           ))}
           {oauthBusy ? <ActivityIndicator color={palette.muted} /> : null}
-          <Text className="text-center text-[13px] text-muted">{TRIAL_PITCH}</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
