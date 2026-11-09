@@ -7,4 +7,8 @@ module.exports = defineConfig([
   {
     ignores: ['dist/*'],
   },
+  {
+    // The resolver cannot read these packages' nested `exports` maps; tsc still resolves and checks them.
+    rules: { 'import/no-unresolved': ['error', { ignore: ['^expo-'] }] },
+  },
 ]);

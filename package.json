@@ -42,6 +42,7 @@
     "@types/react": "~19.3.0",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~58.0.4",
+    "openapi-typescript": "7.13.0",
     "tailwindcss": "^3.4.19",
     "typescript": "~6.0.3",
     "vitest": "^3.2.7"
@@ -54,7 +55,13 @@
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
     "test": "vitest run",
-    "sync:api": "cp ../dolphinllm-client/frontend/src/api.gen.ts src/api/api.gen.ts"
+    "sync:api": "scripts/sync-api.sh",
+    "check:api": "scripts/check-api.sh"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
+  }
 }

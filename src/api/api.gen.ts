@@ -263,7 +263,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Send Message */
+        /**
+         * Send Message
+         * @description Starts the reply as a job and streams its events. The job outlives this request: see app/jobs.py.
+         */
         post: operations["send_message_api_chats__chat_id__messages_post"];
         delete?: never;
         options?: never;
@@ -1192,6 +1195,7 @@ export interface operations {
                 client?: string | null;
                 redirect?: string | null;
                 challenge?: string | null;
+                invite?: string | null;
             };
             header?: never;
             path: {
