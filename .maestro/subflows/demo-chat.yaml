@@ -1,0 +1,21 @@
+# The two exchanges of the README demo, run by scripts/record-framed.sh while it films the simulator window. Expects the
+# app to be signed in and on an empty chat. Keep the prompts short: the video should stay well under 30 seconds.
+appId: host.exp.Exponent
+---
+- tapOn: "Message"
+- inputText: "Hey! Write a two-sentence story about a lighthouse keeper."
+- tapOn: "Send"
+- extendedWaitUntil:
+    notVisible: "Stop"
+    timeout: 120000
+- tapOn: "Message"
+- inputText: "Nice. Now a twist ending, one sentence."
+- tapOn: "Send"
+- extendedWaitUntil:
+    notVisible: "Stop"
+    timeout: 120000
+# Maestro has no sleep: waiting for text that never appears holds the finished reply on screen for the last seconds.
+- extendedWaitUntil:
+    visible: "this text is never shown"
+    timeout: 3000
+    optional: true
