@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { ArrowUp, ImagePlus, Sparkles, Square, X } from "lucide-react-native";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { KeyboardController, KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -34,12 +34,17 @@ export function Composer({ streaming, onSend, onStop, onHeight, canAttach, provi
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [preparing, setPreparing] = useState(0);
   const [illustrate, setIllustrate] = useState(false);
+  // Once the draft runs to a second line the text moves above the buttons, as in ChatGPT, and stays there until it is
+  // empty again: judging it by width would flip back and forth, since the wider layout can fit the same text on one line.
+  const [expanded, setExpanded] = useState(false);
+  const oneLine = useRef(0);
   const canSend = (text.trim().length > 0 || attachments.length > 0) && preparing === 0 && !blocked;
 
   const submit = () => {
     if (!canSend) return;
     onSend(text.trim(), attachments, canIllustrate && illustrate);
     setText("");
+    setExpanded(false);
     setAttachments([]);
     // The reply is for reading: the keyboard goes away, as in ChatGPT, and the answer gets the whole screen.
     void KeyboardController.dismiss();
@@ -60,6 +65,8 @@ export function Composer({ streaming, onSend, onStop, onHeight, canAttach, provi
   };
 
   const room = MAX_IMAGES - attachments.length - preparing;
+  // Where the text starts when the buttons share its row: past the 40px buttons (4px apart) and the 6px edge.
+  const leftInset = 6 + ((managed ? 0 : 1) + (canIllustrate ? 1 : 0)) * 44;
 
   const fromLibrary = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -141,45 +148,63 @@ export function Composer({ streaming, onSend, onStop, onHeight, canAttach, provi
             ))}
           </ScrollView>
         ) : null}
-        <View className="flex-row items-end gap-1 rounded-3xl border border-border bg-surface py-1.5 pl-1.5 pr-1.5">
-          {managed ? null : (
-          <Pressable
-            onPress={choose}
-            hitSlop={6}
-            accessibilityLabel="Add photos"
-            className="h-10 w-10 items-center justify-center rounded-full"
-          >
-            <ImagePlus size={22} color={canAttach ? palette.text : palette.muted} />
-          </Pressable>
-          )}
-          {canIllustrate ? (
-            <Pressable
-              onPress={() => setIllustrate((on) => !on)}
-              hitSlop={6}
-              accessibilityLabel={illustrate ? "Turn off illustrate" : "Turn on illustrate"}
-              accessibilityState={{ selected: illustrate }}
-              // Always the same size: the state shows in the fill and in the chip above, so the input keeps its room.
-              className={`h-10 w-10 items-center justify-center rounded-full ${illustrate ? "bg-accent" : ""}`}
-            >
-              <Sparkles size={20} color={illustrate ? "#fdfbf6" : palette.text} />
-            </Pressable>
-          ) : null}
+        <View className="rounded-3xl border border-border bg-surface">
+          {/* One input in a fixed place so it keeps focus when the layout changes: the buttons sit on the bottom edge,
+              beside the text while it is one line and under it once it is not. */}
           <TextInput
             value={text}
-            onChangeText={setText}
+            onChangeText={(value) => {
+              setText(value);
+              if (!value) setExpanded(false);
+              else if (value.includes("\n")) setExpanded(true);
+            }}
+            onContentSizeChange={(e) => {
+              const height = e.nativeEvent.contentSize.height;
+              if (!text) oneLine.current = height;
+              else if (oneLine.current > 0 && height > oneLine.current * 1.5) setExpanded(true);
+            }}
             placeholder={blocked ? "Free trial ended" : "Message"}
             multiline
             // 16px or more stops iOS from zooming on focus; the cap keeps a long draft from eating the screen.
-            // 40px min height matches the buttons; 22px line + 9px padding centres one line in it. iOS ignores line height
+            // 22px line + 15px padding above and below is the 52px of one row of 40px buttons. iOS ignores line height
             // for the first line unless it is set explicitly, which is what sat the text above the icons.
-            className="max-h-40 min-h-[40px] flex-1 py-[9px] text-[17px] leading-[22px] text-text"
+            className="text-[17px] leading-[22px] text-text"
+            style={
+              expanded
+                ? { minHeight: 52, maxHeight: 212, paddingTop: 15, paddingBottom: 52, paddingHorizontal: 16 }
+                : { minHeight: 52, maxHeight: 160, paddingVertical: 15, paddingLeft: leftInset, paddingRight: 52 }
+            }
             placeholderTextColor="#8a8070"
           />
+          <View className="absolute bottom-1.5 left-1.5 flex-row gap-1">
+            {managed ? null : (
+              <Pressable
+                onPress={choose}
+                hitSlop={6}
+                accessibilityLabel="Add photos"
+                className="h-10 w-10 items-center justify-center rounded-full"
+              >
+                <ImagePlus size={22} color={canAttach ? palette.text : palette.muted} />
+              </Pressable>
+            )}
+            {canIllustrate ? (
+              <Pressable
+                onPress={() => setIllustrate((on) => !on)}
+                hitSlop={6}
+                accessibilityLabel={illustrate ? "Turn off illustrate" : "Turn on illustrate"}
+                accessibilityState={{ selected: illustrate }}
+                // Always the same size: the state shows in the fill and in the chip above, so the input keeps its room.
+                className={`h-10 w-10 items-center justify-center rounded-full ${illustrate ? "bg-accent" : ""}`}
+              >
+                <Sparkles size={20} color={illustrate ? "#fdfbf6" : palette.text} />
+              </Pressable>
+            ) : null}
+          </View>
           <Pressable
             onPress={streaming ? onStop : submit}
             disabled={!streaming && !canSend}
             accessibilityLabel={streaming ? "Stop" : "Send"}
-            className={`h-10 w-10 items-center justify-center rounded-full ${streaming || canSend ? "bg-accent" : "bg-border"}`}
+            className={`absolute bottom-1.5 right-1.5 h-10 w-10 items-center justify-center rounded-full ${streaming || canSend ? "bg-accent" : "bg-border"}`}
           >
             {streaming ? <Square size={16} color="#fdfbf6" fill="#fdfbf6" /> : <ArrowUp size={20} color="#fdfbf6" />}
           </Pressable>
