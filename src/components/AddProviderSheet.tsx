@@ -7,13 +7,14 @@ import { ProviderKeyForm } from "@/components/ProviderKeyForm";
 import { ProviderModelPick } from "@/components/ProviderModelPick";
 import { ProviderPicker } from "@/components/ProviderPicker";
 import { useSaveProvider, useTestProvider } from "@/hooks/useAddProvider";
+import { errorMessage } from "@/lib/errorMessage";
 import { cleanKey, newProfileBody, type Preset } from "@/lib/providerPresets";
 import { usePalette } from "@/lib/theme";
 import { useSheets } from "@/store/sheets";
 
 type Step = "pick" | "key" | "model";
 
-const message = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
+const NO_MODELS: string[] = [];
 
 // Pick a provider, paste its key, then choose the model to start with. The key is only held here until it is sent.
 export function AddProviderSheet() {
@@ -29,7 +30,6 @@ export function AddProviderSheet() {
   const [name, setName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [models, setModels] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<string | null>(null);
 
@@ -39,7 +39,6 @@ export function AddProviderSheet() {
     setName("");
     setBaseUrl("");
     setApiKey("");
-    setModels([]);
     setQuery("");
     setPicked(null);
     test.reset();
@@ -65,11 +64,11 @@ export function AddProviderSheet() {
   };
 
   const connect = () => {
+    const key = cleanKey(apiKey);
     test.mutate(
-      { base_url: baseUrl.trim(), key: cleanKey(apiKey) || null, needs_key: cleanKey(apiKey) !== "" },
+      { base_url: baseUrl.trim(), key: key || null, needs_key: key !== "" },
       {
-        onSuccess: (result) => {
-          setModels(result.models);
+        onSuccess: () => {
           setPicked(null);
           setStep("model");
         },
@@ -111,7 +110,7 @@ export function AddProviderSheet() {
               name={name}
               baseUrl={baseUrl}
               apiKey={apiKey}
-              error={test.error ? message(test.error, "Could not reach the provider") : null}
+              error={test.error ? errorMessage(test.error, "Could not reach the provider") : null}
               busy={test.isPending}
               onName={setName}
               onBaseUrl={setBaseUrl}
@@ -122,10 +121,10 @@ export function AddProviderSheet() {
         ) : null}
         {step === "model" ? (
           <ProviderModelPick
-            models={models}
+            models={test.data?.models ?? NO_MODELS}
             query={query}
             picked={picked}
-            error={save.error ? message(save.error, "Could not save the provider") : null}
+            error={save.error ? errorMessage(save.error, "Could not save the provider") : null}
             busy={save.isPending}
             onQuery={setQuery}
             onPick={setPicked}

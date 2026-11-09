@@ -10,6 +10,7 @@ import { useProviderModels } from "@/hooks/useProviderModels";
 import { useSwitchChatProfile } from "@/hooks/useSwitchChatProfile";
 import { modelBody, overrideModel, shownModel, showDefaultItem } from "@/lib/chatModel";
 import { customCandidate, groupModels } from "@/lib/modelOptions";
+import { errorMessage } from "@/lib/errorMessage";
 import { effectiveProfile } from "@/lib/providers";
 import { usePalette } from "@/lib/theme";
 import { TRIAL_ENDED, TRIAL_LABEL, TRIAL_LOCKED, bannerText, hasOwnProvider, isManaged, sendBlocked, trialActive, trialBanner } from "@/lib/trial";
@@ -88,7 +89,7 @@ export function ProviderSwitcher({ chatId, pendingModel, onPendingModel, disable
     else {
       // The pick was made against the old provider's model list.
       onPendingModel(null);
-      activate(id).catch((e: unknown) => setActionError(e instanceof Error ? e.message : "Could not switch provider"));
+      activate(id).catch((e: unknown) => setActionError(errorMessage(e, "Could not switch provider")));
     }
   };
 
@@ -103,7 +104,7 @@ export function ProviderSwitcher({ chatId, pendingModel, onPendingModel, disable
       await setModel.mutateAsync({ id: chatId, body });
       close();
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Could not change the model");
+      setActionError(errorMessage(e, "Could not change the model"));
     }
   };
 

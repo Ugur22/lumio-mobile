@@ -1,7 +1,5 @@
 import type { NewProfileBody, Profile, ProfileList } from "@/api/types";
 
-export const CUSTOM_ID = "custom";
-
 export interface Preset {
   id: string;
   name: string;

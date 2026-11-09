@@ -110,6 +110,7 @@ export default function Chat() {
   const streaming = pending?.status === "thinking" || pending?.status === "streaming";
 
   const rows = useMemo(() => buildRows(chat?.messages, pending), [chat?.messages, pending]);
+  const showEmpty = rows.length === 0 && empty !== null;
 
   const listRef = useRef<FlashListRef<(typeof rows)[number]>>(null);
   const [showJump, setShowJump] = useState(false);
@@ -291,7 +292,7 @@ export default function Chat() {
           <Pressable onPress={() => refetch()} className="mx-6 mt-10">
             <Text className="text-center text-warn-bar">Could not load this chat. Tap to retry.</Text>
           </Pressable>
-        ) : rows.length === 0 && empty ? (
+        ) : showEmpty && empty ? (
           <EmptyProviders kind={empty} />
         ) : rows.length === 0 ? (
           <View className="flex-1 items-center justify-center px-8">
@@ -335,21 +336,21 @@ export default function Chat() {
         <JumpToLatest visible={showJump} onPress={jumpToLatest} />
       </KeyboardStickyView>
 
-      {rows.length === 0 && empty ? null : (
-      <Composer
-        streaming={streaming}
-        onSend={onSend}
-        onStop={stop}
-        onHeight={setComposerHeight}
-        canAttach={activeProfile?.vision ?? false}
-        // The trial's provider takes no images, and illustrations are not part of it.
-        canIllustrate={!managed && Boolean(activeProfile?.image_model)}
-        managed={managed}
-        trialText={managed && banner ? bannerText(banner) : null}
-        blocked={sendBlocked(trial, activeProfile) || empty !== null}
-        onOpenProviders={() => useSheets.getState().setProviders(true)}
-        providerName={activeProfile?.name ?? null}
-      />
+      {showEmpty ? null : (
+        <Composer
+          streaming={streaming}
+          onSend={onSend}
+          onStop={stop}
+          onHeight={setComposerHeight}
+          canAttach={activeProfile?.vision ?? false}
+          // The trial's provider takes no images, and illustrations are not part of it.
+          canIllustrate={!managed && Boolean(activeProfile?.image_model)}
+          managed={managed}
+          trialText={managed && banner ? bannerText(banner) : null}
+          blocked={sendBlocked(trial, activeProfile) || empty !== null}
+          onOpenProviders={() => useSheets.getState().setProviders(true)}
+          providerName={activeProfile?.name ?? null}
+        />
       )}
       <AddProviderSheet />
       <WebSetupSheet />

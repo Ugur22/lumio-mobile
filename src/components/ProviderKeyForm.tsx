@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Linking, Pressable, Text, TextInput, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
+import { ErrorNote } from "@/components/ui/ErrorNote";
+import { inputClass } from "@/components/ui/styles";
 import { cleanKey, hostOf, validBaseUrl, type Preset } from "@/lib/providerPresets";
 import { usePalette } from "@/lib/theme";
 
@@ -30,8 +32,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const input = "rounded-xl border border-border bg-surface px-4 py-3 text-[16px] text-text";
-
 export function ProviderKeyForm({ preset, name, baseUrl, apiKey, error, busy, onName, onBaseUrl, onKey, onSubmit }: Props) {
   const palette = usePalette();
   const [shown, setShown] = useState(false);
@@ -49,7 +49,7 @@ export function ProviderKeyForm({ preset, name, baseUrl, apiKey, error, busy, on
       {preset === null ? (
         <Field label="Base URL">
           <TextInput
-            className={input}
+            className={inputClass}
             value={baseUrl}
             onChangeText={onBaseUrl}
             placeholder="https://api.example.com/v1"
@@ -94,18 +94,14 @@ export function ProviderKeyForm({ preset, name, baseUrl, apiKey, error, busy, on
       </Field>
 
       <Field label="Name">
-        <TextInput className={input} value={name} onChangeText={onName} maxLength={60} accessibilityLabel="Name" />
+        <TextInput className={inputClass} value={name} onChangeText={onName} maxLength={60} accessibilityLabel="Name" />
       </Field>
 
       {preset ? (
         <Text className="px-1 text-[13px] text-muted">Address: {hostOf(preset.baseUrl)}</Text>
       ) : null}
 
-      {error ? (
-        <View accessibilityRole="alert" className="rounded-[10px] border-l-[3px] border-warn-bar bg-warn-bg px-3 py-2.5">
-          <Text className="text-[13px] text-text">{error}</Text>
-        </View>
-      ) : null}
+      {error ? <ErrorNote>{error}</ErrorNote> : null}
 
       <Button label="Connect" onPress={onSubmit} disabled={!ready} busy={busy} />
     </View>

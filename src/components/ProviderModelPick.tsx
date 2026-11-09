@@ -3,6 +3,8 @@ import { useMemo } from "react";
 import { FlatList, Pressable, Text, TextInput, View } from "react-native";
 
 import { Button } from "@/components/ui/Button";
+import { ErrorNote } from "@/components/ui/ErrorNote";
+import { inputClass } from "@/components/ui/styles";
 import { customCandidate, groupModels } from "@/lib/modelOptions";
 import { usePalette } from "@/lib/theme";
 
@@ -36,7 +38,7 @@ export function ProviderModelPick({ models, query, picked, error, busy, onQuery,
       </View>
       <Text className="px-5 text-xs font-semibold uppercase text-muted">Start with</Text>
       <TextInput
-        className="mx-4 rounded-xl border border-border bg-surface px-4 py-3 text-[16px] text-text"
+        className={`mx-4 ${inputClass}`}
         value={query}
         onChangeText={onQuery}
         placeholder="Search or type a model ID"
@@ -62,11 +64,7 @@ export function ProviderModelPick({ models, query, picked, error, busy, onQuery,
         )}
       />
       <View className="gap-3 px-4 pb-2">
-        {error ? (
-          <View accessibilityRole="alert" className="rounded-[10px] border-l-[3px] border-warn-bar bg-warn-bg px-3 py-2.5">
-            <Text className="text-[13px] text-text">{error}</Text>
-          </View>
-        ) : null}
+        {error ? <ErrorNote>{error}</ErrorNote> : null}
         <Text className="px-1 text-[13px] text-muted">You can switch model any time from the chat header.</Text>
         <Button label="Start chatting" onPress={onDone} disabled={!picked} busy={busy} />
       </View>
