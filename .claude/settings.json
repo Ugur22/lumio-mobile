@@ -1,10 +1,18 @@
 {
   "enabledPlugins": {
     "expo@claude-plugins-official": true
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/check.sh",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
   }
-    "hooks": {
-      "Stop": [
-        { "hooks": [{ "type": "command", "command": "$CLAUDE_PROJECT_DIR/scripts/check.sh", "timeout": 120 }] }
-      ]
-    }
 }
