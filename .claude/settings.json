@@ -1,4 +1,51 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(npm run typecheck)",
+      "Bash(npm run test)",
+      "Bash(npm test)",
+      "Bash(npm run lint)",
+      "Bash(npm run check)",
+      "Bash(npx vitest *)",
+      "Bash(npx tsc *)",
+      "Bash(npx eslint *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "WebFetch(domain:docs.expo.dev)"
+    ],
+    "ask": [
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git push --force*)",
+      "Bash(git push -f *)",
+      "Bash(git reset --hard*)",
+      "Bash(git branch -D *)",
+      "Bash(npm install*)",
+      "Bash(npm i *)",
+      "Bash(npx expo install *)",
+      "Edit(/.claude/settings.json)",
+      "Edit(/scripts/check.sh)",
+      "Edit(/scripts/hooks/**)",
+      "Edit(/.github/workflows/**)",
+      "Edit(/scripts/*-baseline.txt)",
+      "Edit(/app.json)"
+    ],
+    "deny": [
+      "Edit(/src/api/api.gen.ts)",
+      "Bash(gh pr create*)",
+      "Bash(gh pr merge*)",
+      "Bash(git push origin main)",
+      "Bash(git push origin HEAD:main)",
+      "Bash(git push * main)",
+      "Read(**/.env*)",
+      "Read(**/*.p8)",
+      "Read(**/*.p12)",
+      "Read(**/*.key)",
+      "Read(**/*.jks)",
+      "Read(**/*.mobileprovision)"
+    ]
+  },
   "enabledPlugins": {
     "expo@claude-plugins-official": true
   },
