@@ -58,7 +58,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
     "test": "vitest run",
-    "check": "npm run typecheck && npm test && npm run lint",
+    "check": "npm run typecheck && npm test && npm run lint && npm run check:size && npm run check:tests",
+    "check:size": "scripts/check-file-size.sh",
+    "check:tests": "scripts/check-test-count.sh",
     "sync:api": "scripts/sync-api.sh",
     "check:api": "scripts/check-api.sh",
     "e2e": "maestro test .maestro/smoke.yaml"
