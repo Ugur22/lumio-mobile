@@ -27,7 +27,7 @@ After every push, end the reply with a ready-to-run command for the user (to run
 <the problem it solves, one or two sentences; omit for trivial changes>
 
 ## Check
-<what was run and what it showed, plus anything not verified, such as the UI on a device>
+<what was run and what it showed, including the visual check when the diff needed it, plus anything not verified, such as the UI on a device>
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
@@ -43,6 +43,8 @@ Nothing else looks at the UI, and booting a simulator is slow, so this is decide
 - It runs against the Lumio stub backend (`make e2e-mobile-server` in the lumio repo, on `127.0.0.1:18766`), never the real API, so replies are instant and screenshots are the same every run. The script starts Expo with `EXPO_PUBLIC_LUMIO_SERVER` pointing at the stub. Restart the stub before each run that includes the drawer flow: it keeps chats while it runs, and the script refuses to take the drawer against a stub that already has some.
 - Claude's sandbox cannot reach the simulator. When the check is needed, give the user `! scripts/visual-check.sh` to run and wait for it; never report it as passed without having seen the screenshots.
 - Look at the PNGs in `.maestro/screenshots/` (the changed screens, light and dark): fix what is clearly broken (clipped or overlapping text, unreadable contrast, content under the notch or keyboard), re-run once, and list anything you are unsure about instead of guessing.
+- When the change is meant to fix how something looks, keep the screenshot from before (a run empties that folder, so copy the PNGs out first) and show the user a before and after pair side by side.
+- How to start the stub and set up the simulator is in the README, under "Visual check, against a stub backend".
 
 ## Components
 

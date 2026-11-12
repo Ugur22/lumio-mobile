@@ -53,6 +53,24 @@ scripts/screenshot-framed.sh # framed screenshot of the current screen (docs/log
 
 Needs `maestro` and `ffmpeg` (`brew install mobile-dev-inc/tap/maestro ffmpeg`).
 
+The smoke test talks to the real backend, so it stays a by-hand check before a release; it does not run in CI (a simulator needs a macOS runner, and EAS or Maestro Cloud would need a build of the app, which Expo Go does not give).
+
+### Visual check, against a stub backend
+
+`scripts/visual-check.sh` runs the flows in `.maestro/visual` (login, provider sheet, drawer, chat) in light and dark mode and saves screenshots in `.maestro/screenshots/` (git-ignored; each run empties it). It uses a stub backend, so replies are instant and the screenshots are the same every run, and it never touches the real API. `AGENTS.md` says when it is needed (`scripts/visual-check.sh --needed` decides from the diff).
+
+1. **Start the stub** from a checkout of the [lumio](https://github.com/Ugur22/lumio) repo: `make e2e-mobile-server`. It serves the app on `127.0.0.1:18766` with a fake upstream on `:18765` and a throwaway database that holds one account, `demo` (password `demo-visual-pass-1`). Restart it before each run that includes the drawer: it keeps its chats while it runs, and the script refuses to take the drawer against a stub that already has some.
+2. **Use a simulator with Expo Go.** The script uses the booted simulator. If none is booted it boots `VISUAL_DEVICE`, else an iPhone that already has Expo Go, else the last iPhone listed, which then stops with "Expo Go is not installed". It runs `clearKeychain`, which wipes that simulator's keychain, so use a dedicated one. Turn off "Connect Hardware Keyboard" once (I/O > Keyboard in the simulator), or the keyboard screenshot shows no keyboard.
+3. **Run it** from a normal terminal (a sandboxed shell cannot reach the simulator):
+
+```sh
+scripts/visual-check.sh --needed        # does this diff need it, and which flows
+scripts/visual-check.sh --force         # run it anyway (or VISUAL_CHECK=force); VISUAL_CHECK=skip does nothing
+scripts/visual-check.sh --flows login   # only some flows: login provider-sheet drawer chat
+```
+
+It starts Expo itself, with `EXPO_PUBLIC_LUMIO_SERVER` pointing at the stub, and stops it afterwards, so nothing else may be using port 8081. Environment overrides: `VISUAL_STUB_URL` (default `http://127.0.0.1:18766`), `VISUAL_STUB_USER` and `VISUAL_STUB_PASS` (the `demo` account), `VISUAL_BASE` (what the diff is compared with, default `origin/main`) and `VISUAL_DEVICE`. A full run is eight flow runs (four flows, light and dark), so give it several minutes. To show a fix as a before and after, copy the screenshots out before the run and put the pair side by side (`ffmpeg ... -filter_complex hstack`).
+
 ## API types
 
 `src/api/api.gen.ts` is generated, never edited by hand. The source of truth is `openapi.json` in the lumio repo, which `make types` there regenerates and its `make check` keeps fresh. Generating from it here, with the same `openapi-typescript` version and flags as the web app, keeps both clients on one contract.
