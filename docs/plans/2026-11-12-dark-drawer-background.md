@@ -1,6 +1,6 @@
 # Dark drawer background
 
-Status: draft (2026-11-12)
+Status: done (2026-11-12). Checked on an iPhone 17 Pro Max with the visual check, light and dark.
 
 ## Goal
 In dark mode the open chat drawer shows a pale strip beside the sliding chat, and the status bar's white icons are barely readable on it. Give the navigation container the app's own colours, so whatever shows behind a screen follows the Lumio theme in light and dark.
