@@ -1,6 +1,6 @@
 # Agent harness
 
-Status: approved (2026-11-12). Steps 1-3 merged; 4 and 4b open as PRs; 5 is this PR; 6-8 to do.
+Status: done (2026-11-12). Steps 1-7 merged; 8 is the e2e docs PR. The backend side (`e2e-mobile-server`) lives in Ugur22/lumio.
 
 ## Goal
 Enforce in code what AGENTS.md only asks for in text, using the backend repo (Ugur22/lumio) as the reference: hooks, permissions, a reviewer agent, guardrails, plans, and a way to check the UI and e2e against a stub backend.
@@ -25,7 +25,7 @@ One branch and PR per step, one commit per step.
 7. **Visual check:** `scripts/visual-check.sh` with a `--needed` trigger, `.maestro/visual/` flows against the stub, git-ignored screenshots and the AGENTS.md rule (no skill: the rule and the script cover it). Runs once at the end of a task, never in the Stop hook.
    Verify: `--needed` triggers and skips as AGENTS.md says (probe edits); the simulator run is done by the user, because Claude's sandbox cannot reach the simulator.
 8. **e2e docs:** document the local e2e step (against the stub) and add it to the PR template's Check section.
-   Verify: the documented commands run on a clean simulator.
+   Verify: every command in the README section was run on a simulator during the visual-check work (stub start, `--needed`, `--force`, `--flows`).
 
 ## Out of scope
 - Running e2e in CI (macOS runner, EAS Workflows and Maestro Cloud were weighed; local with the stub wins for now).
