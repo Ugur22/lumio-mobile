@@ -1,16 +1,18 @@
 import "../global.css";
 import { Literata_600SemiBold, useFonts } from "@expo-google-fonts/literata";
-import { Stack } from "expo-router";
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { useEffect } from "react";
-import { View } from "react-native";
+import { useEffect, useMemo } from "react";
+import { useColorScheme, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { setUnauthorizedHandler } from "@/api/client";
+import { navigationColors } from "@/lib/navTheme";
 import { queryClient } from "@/lib/queryClient";
+import { usePalette } from "@/lib/theme";
 import { useCurrent } from "@/store/current";
 import { useSession } from "@/store/session";
 import { useStream } from "@/store/stream";
@@ -25,6 +27,14 @@ export default function RootLayout() {
   const themeReady = useTheme((s) => s.ready);
   // A font that fails to load must not hold the app back: the headline falls back to the system font.
   const [fontsLoaded, fontError] = useFonts({ Literata_600SemiBold });
+
+  // The router's built-in themes are the iOS system greys, which showed beside the open drawer in dark mode.
+  const scheme = useColorScheme();
+  const palette = usePalette();
+  const navTheme = useMemo(() => {
+    const base = scheme === "dark" ? DarkTheme : DefaultTheme;
+    return { ...base, colors: { ...base.colors, ...navigationColors(palette) } };
+  }, [scheme, palette]);
 
   useEffect(() => {
     setUnauthorizedHandler(() => useSession.getState().expire());
@@ -56,14 +66,16 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
       <KeyboardProvider>
         <StatusBar style="auto" />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Protected guard={status === "signedIn"}>
-            <Stack.Screen name="(drawer)" />
-          </Stack.Protected>
-          <Stack.Protected guard={status !== "signedIn"}>
-            <Stack.Screen name="login" />
-          </Stack.Protected>
-        </Stack>
+        <ThemeProvider value={navTheme}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Protected guard={status === "signedIn"}>
+              <Stack.Screen name="(drawer)" />
+            </Stack.Protected>
+            <Stack.Protected guard={status !== "signedIn"}>
+              <Stack.Screen name="login" />
+            </Stack.Protected>
+          </Stack>
+        </ThemeProvider>
       </KeyboardProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>
