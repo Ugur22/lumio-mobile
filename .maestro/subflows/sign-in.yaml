@@ -1,0 +1,23 @@
+# Opens Lumio in Expo Go, signs in when the login screen shows and dismisses iOS's Save Password prompt. Needs
+# MAESTRO_DEMO_USER and MAESTRO_DEMO_PASS when it has to sign in.
+appId: host.exp.Exponent
+---
+- runFlow: open-app.yaml
+- runFlow:
+    when:
+      visible: "Username"
+    commands:
+      - tapOn: "Username"
+      - inputText: ${MAESTRO_DEMO_USER}
+      - tapOn: "Password"
+      - inputText: ${MAESTRO_DEMO_PASS}
+      - tapOn: "Sign in"
+# iOS offers to save the password after sign-in and covers the chat until it is answered.
+- runFlow:
+    when:
+      visible: "Not Now"
+    commands:
+      - tapOn: "Not Now"
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 30000

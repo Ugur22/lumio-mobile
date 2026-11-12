@@ -1,0 +1,11 @@
+# Visual check: the chat drawer, opened from the menu button in the chat header.
+appId: host.exp.Exponent
+---
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/sign-in.yaml
+- tapOn: "Chats"
+- extendedWaitUntil:
+    visible: "Sign out"
+    timeout: 5000
+- takeScreenshot: ${SHOT_DIR}/${MODE}-drawer

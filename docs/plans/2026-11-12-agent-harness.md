@@ -21,9 +21,9 @@ One branch and PR per step, one commit per step.
 5. **Plans and review (plans-and-review):** this template, the workflow rules and the PR template in AGENTS.md.
    Verify: the reviewer, given this plan and the diff, reports no skipped step.
 6. **Stub server URL:** `EXPO_PUBLIC_LUMIO_SERVER` overrides `DEFAULT_SERVER` in `src/lib/config.ts`.
-   Verify: Vitest for the override; the app signs in against the backend's `make e2e-server` stub.
-7. **Visual check:** `scripts/visual-check.sh` with a `--needed` trigger, `.maestro/visual/` flows against the stub, git-ignored screenshots, the AGENTS.md rule and a skill. Runs once at the end of a task, never in the Stop hook.
-   Verify: runs on a change that should trigger it, and says "not needed" on one that should not.
+   Verify: Vitest for the override; the stub backend (`make e2e-mobile-server` in Ugur22/lumio) answers `/api/auth/token` for `demo` (checked with curl: token returned).
+7. **Visual check:** `scripts/visual-check.sh` with a `--needed` trigger, `.maestro/visual/` flows against the stub, git-ignored screenshots and the AGENTS.md rule (no skill: the rule and the script cover it). Runs once at the end of a task, never in the Stop hook.
+   Verify: `--needed` triggers and skips as AGENTS.md says (probe edits); the simulator run is done by the user, because Claude's sandbox cannot reach the simulator.
 8. **e2e docs:** document the local e2e step (against the stub) and add it to the PR template's Check section.
    Verify: the documented commands run on a clean simulator.
 
@@ -32,4 +32,5 @@ One branch and PR per step, one commit per step.
 - Fixing the existing hardcoded colors and `StyleSheet` use in `Composer.tsx` and `src/app/(drawer)/index.tsx`.
 
 ## Open questions
-- Whether the backend's e2e mode serves username/password sign-in, or needs a seeded demo account (a PR in Ugur22/lumio).
+- Resolved: the backend's e2e mode needs a seeded `demo` admin and a public host, which the `e2e-mobile-server` target (a PR in Ugur22/lumio) provides.
+- Still open: whether `demo` sees the "E2E Stub" provider, and the first simulator run (Maestro selectors, the keyboard screenshot) are unverified.

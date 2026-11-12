@@ -44,3 +44,6 @@ yarn-error.*
 # claude
 .claude/settings.local.json
 .claude/.check-stamp
+
+# visual check screenshots
+.maestro/screenshots/
