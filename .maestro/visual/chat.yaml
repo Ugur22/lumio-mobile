@@ -3,10 +3,13 @@ appId: host.exp.Exponent
 ---
 - launchApp:
     clearState: true
+- clearKeychain
 - runFlow: ../subflows/sign-in.yaml
-- takeScreenshot: ${SHOT_DIR}/${MODE}-chat-empty
+- waitForAnimationToEnd
+- takeScreenshot: chat-empty
 - tapOn: "Message"
-- takeScreenshot: ${SHOT_DIR}/${MODE}-chat-keyboard
+- waitForAnimationToEnd
+- takeScreenshot: chat-keyboard
 - inputText: "Say hello"
 - tapOn: "Send"
 - extendedWaitUntil:
@@ -15,4 +18,5 @@ appId: host.exp.Exponent
 - extendedWaitUntil:
     notVisible: "Stop"
     timeout: 15000
-- takeScreenshot: ${SHOT_DIR}/${MODE}-chat-reply
+- waitForAnimationToEnd
+- takeScreenshot: chat-reply

@@ -3,9 +3,11 @@ appId: host.exp.Exponent
 ---
 - launchApp:
     clearState: true
+- clearKeychain
 - runFlow: ../subflows/sign-in.yaml
 - tapOn: "Chats"
 - extendedWaitUntil:
     visible: "Sign out"
     timeout: 5000
-- takeScreenshot: ${SHOT_DIR}/${MODE}-drawer
+- waitForAnimationToEnd
+- takeScreenshot: drawer

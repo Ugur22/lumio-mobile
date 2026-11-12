@@ -145,14 +145,20 @@ done
 
 export MAESTRO_DEMO_USER=${VISUAL_STUB_USER:-demo} MAESTRO_DEMO_PASS=${VISUAL_STUB_PASS:-demo-visual-pass-1}
 rm -rf "$OUT"; mkdir -p "$OUT"
-shots=$(cd "$OUT" && pwd)
 failed=0
 for appearance in light dark; do
   xcrun simctl ui booted appearance "$appearance"
   for flow in $flows; do
     echo "== $appearance / $flow"
-    maestro test -e SHOT_DIR="$shots" -e MODE="$appearance" ".maestro/visual/$flow.yaml" \
+    # Maestro only lets takeScreenshot write inside the run's own output folder, so each run gets one and the PNGs are
+    # copied from there, with the appearance in the name.
+    run_dir=$(mktemp -d "${TMPDIR:-/tmp}/visual-run.XXXXXX")
+    maestro test --test-output-dir "$run_dir" ".maestro/visual/$flow.yaml" \
       || { echo "flow failed: $appearance/$flow" >&2; failed=1; }
+    while IFS= read -r -d '' png; do
+      cp "$png" "$OUT/$appearance-$(basename "$png")"
+    done < <(find "$run_dir" -name '*.png' -print0)
+    rm -rf "$run_dir"
   done
 done
 
