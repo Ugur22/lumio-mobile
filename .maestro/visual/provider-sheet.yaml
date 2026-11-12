@@ -1,0 +1,11 @@
+# Visual check: the Provider and model sheet, opened from the chat header.
+appId: host.exp.Exponent
+---
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/sign-in.yaml
+- tapOn: "Provider and model.*"
+- extendedWaitUntil:
+    visible: "Done"
+    timeout: 5000
+- takeScreenshot: ${SHOT_DIR}/${MODE}-provider-sheet

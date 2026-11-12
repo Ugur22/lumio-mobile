@@ -1,0 +1,18 @@
+# Visual check: an empty chat, the keyboard, and a short reply from the stub (instant, so the screenshot is the same every run).
+appId: host.exp.Exponent
+---
+- launchApp:
+    clearState: true
+- runFlow: ../subflows/sign-in.yaml
+- takeScreenshot: ${SHOT_DIR}/${MODE}-chat-empty
+- tapOn: "Message"
+- takeScreenshot: ${SHOT_DIR}/${MODE}-chat-keyboard
+- inputText: "Say hello"
+- tapOn: "Send"
+- extendedWaitUntil:
+    visible: ".*fake upstream.*"
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible: "Stop"
+    timeout: 15000
+- takeScreenshot: ${SHOT_DIR}/${MODE}-chat-reply

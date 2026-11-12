@@ -1,0 +1,15 @@
+# Opens Lumio in Expo Go and waits for the login screen or a signed-in chat. Needs `npx expo start` on port 8081.
+appId: host.exp.Exponent
+---
+- launchApp
+- openLink: exp://127.0.0.1:8081
+# Expo Go may ask before opening the project the first time.
+- runFlow:
+    when:
+      visible: "Open"
+    commands:
+      - tapOn: "Open"
+# Maestro matches text as a regex: the login screen has "Username", a signed-in chat has "Message".
+- extendedWaitUntil:
+    visible: "Username|Message"
+    timeout: 60000
