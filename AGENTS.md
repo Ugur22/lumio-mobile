@@ -5,13 +5,34 @@ This is an Expo/React Native mobile application. Prioritize mobile-first pattern
 Native client for the Lumio API (backend and web: Ugur22/lumio). The same rules as that repo's CLAUDE.md apply where they fit.
 
 - No commits without explicit approval. `main` only takes changes through a PR, and `gh` fails inside Claude's sandbox, so never open one: after a push, end with a ready-to-run `gh pr create` command for the user.
-- Anything non-trivial: plan first, then wait for approval.
+- Anything non-trivial: save a plan in `docs/plans/<yyyy-mm-dd>-<slug>.md` (copy `docs/plans/TEMPLATE.md`: goal, steps, how each step is verified, out of scope), then wait for approval. Unless the user says otherwise, approving a plan is the explicit approval for one commit per step (aim for under ~300 changed lines, `api.gen.ts` excluded) and one push per branch; the permission prompt for commits and pushes still appears. Verify each step as the plan says before its commit.
+- **Review before done:** after the last step's commit and before the final push, run the `reviewer` agent (`.claude/agents/reviewer.md`) and give it only the plan path and the base branch, never the conversation, so it judges the committed diff (`git diff main...HEAD`) against the plan. Fix confirmed findings; report suspicions and what it could not verify.
 - **API contract:** `src/api/api.gen.ts` is generated from the backend's `openapi.json`. Never edit it by hand; run `npm run sync:api` (`LUMIO_API_REF=<tag|sha>` for another ref), then fix the type errors it causes in `src/`. `src/api/types.ts` gives the generated shapes their short names and holds the SSE payloads the schema cannot describe. The backend only adds fields, because older app versions stay installed, so never rely on a field being removed or renamed.
 - **Done means green:** `npm run typecheck`, `npm test` and `npm run lint`, which `npm run check` runs together. The Stop hook (`scripts/check.sh`) runs it when a source file changed since the last green run, and blocks the stop up to 3 times before telling you to report the failure. A PostToolUse hook (`scripts/hooks/post-edit.sh`) runs eslint on each edited file. `npm run check:api` needs the network, so it runs in CI only (`.github/workflows/ci.yml`), not in the hook. Do not edit the hook or the CI workflow to loosen a check.
 - **Permissions:** `.claude/settings.json` denies hand edits to `src/api/api.gen.ts`, opening PRs and pushing to `main`, and reading key files; it asks before commits, pushes, installing a package (it may need a development build) and edits to the hook scripts, the CI workflow, the baselines and `app.json`. Bash rules are best effort; GitHub branch protection is the real guard for `main`.
 - Tokens and the API key live in `expo-secure-store`, never in AsyncStorage, logs or committed files.
 - Reply text from the model is untrusted: it is always rendered through the Markdown and HTML renderers, never as raw markup.
 - Develop and test in Expo Go. Do not add a library that needs a development build without telling the user first.
+
+## Pull requests
+
+After every push, end the reply with a ready-to-run command for the user (to run with the `!` prefix) in this shape. The title matches the commit's first line. Mention API or behaviour changes under What, and anything the user has to do by hand under Check.
+
+```
+! gh pr create --base main --head <branch> --title "<imperative, under 70 characters>" --body "$(cat <<'EOF'
+## What
+- <the change, one bullet per point>
+
+## Why
+<the problem it solves, one or two sentences; omit for trivial changes>
+
+## Check
+<what was run and what it showed, plus anything not verified, such as the UI on a device>
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+EOF
+)"
+```
 
 ## Components
 
