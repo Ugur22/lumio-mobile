@@ -33,4 +33,5 @@ One branch and PR per step, one commit per step.
 
 ## Open questions
 - Resolved: the backend's e2e mode needs a seeded `demo` admin and a public host, which the `e2e-mobile-server` target (a PR in Ugur22/lumio) provides.
-- Still open: whether `demo` sees the "E2E Stub" provider, and the first simulator run (Maestro selectors, the keyboard screenshot) are unverified.
+- Resolved by the first simulator runs: `demo` sees the "E2E Stub" provider; the login, provider-sheet, drawer and chat flows run in light and dark. The backend needed one more change, letting a deployed-mode server reach the e2e stub upstream.
+- Still open: the keyboard screenshot shows no keyboard until the simulator's hardware keyboard is turned off (I/O > Keyboard, or the shortcut in the simulator); a dark-mode strip beside the sliding chat in the open drawer, to fix in its own PR.

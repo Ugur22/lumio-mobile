@@ -15,7 +15,8 @@ cd "$(dirname "$0")/.."
 
 STUB=${VISUAL_STUB_URL:-http://127.0.0.1:18766}
 OUT=.maestro/screenshots
-ALL_FLOWS="login chat provider-sheet drawer"
+# In this order on purpose: chat creates a chat on the stub, so it runs last and the drawer never shows one.
+ALL_FLOWS="login provider-sheet drawer chat"
 
 die() { echo "visual-check: $*" >&2; exit 1; }
 
@@ -80,6 +81,9 @@ if [ -n "$only" ]; then
     case " $ALL_FLOWS " in *" $f "*) ;; *) die "unknown flow $f (flows: $ALL_FLOWS)" ;; esac
   done
 fi
+ordered=""
+for f in $ALL_FLOWS; do case " $flows " in *" $f "*) ordered="$ordered $f" ;; esac; done
+flows=$ordered
 
 if [ "$want_decision" -eq 1 ]; then
   if [ "$needed" -eq 1 ]; then echo "needed: $reason. Flows:$(printf ' %s' $flows)"; exit 0; fi
@@ -99,6 +103,21 @@ curl -s -o /dev/null --max-time 3 "$STUB" || die "no stub backend at $STUB; star
 if lsof -nP -iTCP:8081 -sTCP:LISTEN >/dev/null 2>&1; then
   die "port 8081 is in use, probably a dev server pointing at the real backend; stop it first"
 fi
+
+export MAESTRO_DEMO_USER=${VISUAL_STUB_USER:-demo} MAESTRO_DEMO_PASS=${VISUAL_STUB_PASS:-demo-visual-pass-1}
+# The stub keeps its chats for as long as it runs, so a drawer taken after an earlier run would list them and the
+# screenshots would differ from run to run. A freshly started stub has none.
+case " $flows " in
+  *" drawer "*)
+    token=$(curl -fs --max-time 5 -X POST "$STUB/api/auth/token" -H 'content-type: application/json' \
+      -d "{\"username\":\"$MAESTRO_DEMO_USER\",\"password\":\"$MAESTRO_DEMO_PASS\"}" \
+      | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])') \
+      || die "cannot sign in to the stub as $MAESTRO_DEMO_USER (is it the e2e-mobile-server?)"
+    chats=$(curl -fs --max-time 5 -H "Authorization: Bearer $token" "$STUB/api/chats" \
+      | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))') || die "cannot list the stub's chats"
+    [ "$chats" -eq 0 ] || die "the stub already has $chats chat(s), which the drawer would show: restart it (Ctrl-C, then make e2e-mobile-server) for identical screenshots"
+    ;;
+esac
 
 if ! xcrun simctl list devices booted | grep -q '(Booted)'; then
   udid=${VISUAL_DEVICE:-}
@@ -143,12 +162,11 @@ for i in $(seq 1 60); do
   if [ "$i" -eq 60 ]; then tail -20 "$log" >&2; die "the dev server did not start"; fi
 done
 
-export MAESTRO_DEMO_USER=${VISUAL_STUB_USER:-demo} MAESTRO_DEMO_PASS=${VISUAL_STUB_PASS:-demo-visual-pass-1}
 rm -rf "$OUT"; mkdir -p "$OUT"
 failed=0
-for appearance in light dark; do
-  xcrun simctl ui booted appearance "$appearance"
-  for flow in $flows; do
+for flow in $flows; do
+  for appearance in light dark; do
+    xcrun simctl ui booted appearance "$appearance"
     echo "== $appearance / $flow"
     # Maestro only lets takeScreenshot write inside the run's own output folder, so each run gets one and the PNGs are
     # copied from there, with the appearance in the name.
