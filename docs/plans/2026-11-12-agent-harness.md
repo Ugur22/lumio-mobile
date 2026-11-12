@@ -1,6 +1,6 @@
 # Agent harness
 
-Status: done (2026-11-12). Steps 1-7 merged; 8 is the e2e docs PR. The backend side (`e2e-mobile-server`) lives in Ugur22/lumio.
+Status: approved (2026-11-12). Steps 1-7 merged; 8 is the e2e docs PR, and the plan is done when it merges. The backend side (`e2e-mobile-server`) lives in Ugur22/lumio.
 
 ## Goal
 Enforce in code what AGENTS.md only asks for in text, using the backend repo (Ugur22/lumio) as the reference: hooks, permissions, a reviewer agent, guardrails, plans, and a way to check the UI and e2e against a stub backend.
