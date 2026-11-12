@@ -1,11 +1,15 @@
-# Visual check: the login screen. Run by scripts/visual-check.sh, which sets SHOT_DIR and MODE (light or dark).
+# Visual check: the login screen. Run by scripts/visual-check.sh, which copies the screenshots out with light or dark in the name.
 appId: host.exp.Exponent
 ---
 # Clear Expo Go's storage so a server or token saved by an earlier run cannot win over the stub.
 - launchApp:
     clearState: true
+- clearKeychain
 - runFlow: ../subflows/open-app.yaml
 - extendedWaitUntil:
     visible: "Username"
     timeout: 10000
-- takeScreenshot: ${SHOT_DIR}/${MODE}-login
+# The visual check must never look at the real server: fail here instead of taking a plausible screenshot of it.
+- assertVisible: ".*127\\.0\\.0\\.1.*"
+- waitForAnimationToEnd
+- takeScreenshot: login

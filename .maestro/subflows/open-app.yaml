@@ -2,14 +2,25 @@
 appId: host.exp.Exponent
 ---
 - launchApp
-- openLink: exp://127.0.0.1:8081
+# __expo_disable_onboarding=1 skips Expo Go's developer-menu intro and __expo_disable_fab=1 hides its blue gear button, so
+# neither shows up in screenshots (the dev server's own link carries both).
+- openLink: exp://127.0.0.1:8081?__expo_disable_onboarding=1&__expo_disable_fab=1
 # Expo Go may ask before opening the project the first time.
 - runFlow:
     when:
       visible: "Open"
     commands:
       - tapOn: "Open"
-# Maestro matches text as a regex: the login screen has "Username", a signed-in chat has "Message".
+# Maestro matches text as a regex: the login screen has "Username", a signed-in chat has "Message". After Expo Go's storage
+# was cleared it first shows a developer-menu intro that covers the app until "Continue" is tapped.
+- extendedWaitUntil:
+    visible: "Username|Message|.*developer menu.*"
+    timeout: 60000
+- runFlow:
+    when:
+      visible: ".*developer menu.*"
+    commands:
+      - tapOn: "Continue"
 - extendedWaitUntil:
     visible: "Username|Message"
     timeout: 60000

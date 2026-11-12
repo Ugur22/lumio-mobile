@@ -15,7 +15,8 @@ cd "$(dirname "$0")/.."
 
 STUB=${VISUAL_STUB_URL:-http://127.0.0.1:18766}
 OUT=.maestro/screenshots
-ALL_FLOWS="login chat provider-sheet drawer"
+# In this order on purpose: chat creates a chat on the stub, so it runs last and the drawer never shows one.
+ALL_FLOWS="login provider-sheet drawer chat"
 
 die() { echo "visual-check: $*" >&2; exit 1; }
 
@@ -80,6 +81,9 @@ if [ -n "$only" ]; then
     case " $ALL_FLOWS " in *" $f "*) ;; *) die "unknown flow $f (flows: $ALL_FLOWS)" ;; esac
   done
 fi
+ordered=""
+for f in $ALL_FLOWS; do case " $flows " in *" $f "*) ordered="$ordered $f" ;; esac; done
+flows=$ordered
 
 if [ "$want_decision" -eq 1 ]; then
   if [ "$needed" -eq 1 ]; then echo "needed: $reason. Flows:$(printf ' %s' $flows)"; exit 0; fi
@@ -100,15 +104,42 @@ if lsof -nP -iTCP:8081 -sTCP:LISTEN >/dev/null 2>&1; then
   die "port 8081 is in use, probably a dev server pointing at the real backend; stop it first"
 fi
 
+export MAESTRO_DEMO_USER=${VISUAL_STUB_USER:-demo} MAESTRO_DEMO_PASS=${VISUAL_STUB_PASS:-demo-visual-pass-1}
+# The stub keeps its chats for as long as it runs, so a drawer taken after an earlier run would list them and the
+# screenshots would differ from run to run. A freshly started stub has none.
+case " $flows " in
+  *" drawer "*)
+    token=$(curl -fs --max-time 5 -X POST "$STUB/api/auth/token" -H 'content-type: application/json' \
+      -d "{\"username\":\"$MAESTRO_DEMO_USER\",\"password\":\"$MAESTRO_DEMO_PASS\"}" \
+      | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])') \
+      || die "cannot sign in to the stub as $MAESTRO_DEMO_USER (is it the e2e-mobile-server?)"
+    chats=$(curl -fs --max-time 5 -H "Authorization: Bearer $token" "$STUB/api/chats" \
+      | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))') || die "cannot list the stub's chats"
+    [ "$chats" -eq 0 ] || die "the stub already has $chats chat(s), which the drawer would show: restart it (Ctrl-C, then make e2e-mobile-server) for identical screenshots"
+    ;;
+esac
+
 if ! xcrun simctl list devices booted | grep -q '(Booted)'; then
-  udid=${VISUAL_DEVICE:-$(xcrun simctl list devices available | grep 'iPhone' | tail -1 | grep -oE '[0-9A-F]{8}-([0-9A-F]{4}-){3}[0-9A-F]{12}' || true)}
+  udid=${VISUAL_DEVICE:-}
+  if [ -z "$udid" ]; then
+    # An iPhone simulator that already has Expo Go; the last one listed otherwise. (A shut-down device cannot be asked
+    # with simctl, so look for the app in its data folder.)
+    for u in $(xcrun simctl list devices available | grep 'iPhone' | grep -oE '[0-9A-F]{8}-([0-9A-F]{4}-){3}[0-9A-F]{12}'); do
+      fallback=$u
+      if grep -qs host.exp.Exponent "$HOME/Library/Developer/CoreSimulator/Devices/$u/data/Containers/Bundle/Application/"*/*.app/Info.plist; then
+        udid=$u; break
+      fi
+    done
+    udid=${udid:-${fallback:-}}
+  fi
   [ -n "$udid" ] || die "no iPhone simulator available (set VISUAL_DEVICE to a simulator id)"
   xcrun simctl boot "$udid"
-  open -a Simulator || true
+  # Newer Xcode shows simulators in "Device Hub" instead of "Simulator".
+  open -a Simulator 2>/dev/null || open -a "Device Hub" 2>/dev/null || true
   xcrun simctl bootstatus "$udid" -b >/dev/null
 fi
 xcrun simctl get_app_container booted host.exp.Exponent >/dev/null 2>&1 \
-  || die "Expo Go is not installed in the booted simulator (npx expo start, then press i, installs it)"
+  || die "Expo Go is not installed in the booted simulator. Shut it down (xcrun simctl shutdown all) so the script can pick one that has it, set VISUAL_DEVICE to one, or install it (npx expo start, then press i)"
 
 orig=$(xcrun simctl ui booted appearance 2>/dev/null || echo light)
 log=$(mktemp "${TMPDIR:-/tmp}/visual-metro.XXXXXX")
@@ -131,16 +162,21 @@ for i in $(seq 1 60); do
   if [ "$i" -eq 60 ]; then tail -20 "$log" >&2; die "the dev server did not start"; fi
 done
 
-export MAESTRO_DEMO_USER=${VISUAL_STUB_USER:-demo} MAESTRO_DEMO_PASS=${VISUAL_STUB_PASS:-demo-visual-pass-1}
 rm -rf "$OUT"; mkdir -p "$OUT"
-shots=$(cd "$OUT" && pwd)
 failed=0
-for appearance in light dark; do
-  xcrun simctl ui booted appearance "$appearance"
-  for flow in $flows; do
+for flow in $flows; do
+  for appearance in light dark; do
+    xcrun simctl ui booted appearance "$appearance"
     echo "== $appearance / $flow"
-    maestro test -e SHOT_DIR="$shots" -e MODE="$appearance" ".maestro/visual/$flow.yaml" \
+    # Maestro only lets takeScreenshot write inside the run's own output folder, so each run gets one and the PNGs are
+    # copied from there, with the appearance in the name.
+    run_dir=$(mktemp -d "${TMPDIR:-/tmp}/visual-run.XXXXXX")
+    maestro test --test-output-dir "$run_dir" ".maestro/visual/$flow.yaml" \
       || { echo "flow failed: $appearance/$flow" >&2; failed=1; }
+    while IFS= read -r -d '' png; do
+      cp "$png" "$OUT/$appearance-$(basename "$png")"
+    done < <(find "$run_dir" -name '*.png' -print0)
+    rm -rf "$run_dir"
   done
 done
 
