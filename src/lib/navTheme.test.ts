@@ -17,9 +17,7 @@ describe("navigationColors", () => {
     expect(navigationColors(light).background).toBe("#f7f2e9");
   });
 
-  it("never falls back to the system grey that showed beside the dark drawer", () => {
-    for (const palette of [dark, light]) {
-      expect(navigationColors(palette).background).not.toBe("rgb(242, 242, 242)");
-    }
+  it("returns only the five keys it owns, so the router's other theme colours stay as they are", () => {
+    expect(Object.keys(navigationColors(dark)).sort()).toEqual(["background", "border", "card", "primary", "text"]);
   });
 });
