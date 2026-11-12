@@ -101,14 +101,26 @@ if lsof -nP -iTCP:8081 -sTCP:LISTEN >/dev/null 2>&1; then
 fi
 
 if ! xcrun simctl list devices booted | grep -q '(Booted)'; then
-  udid=${VISUAL_DEVICE:-$(xcrun simctl list devices available | grep 'iPhone' | tail -1 | grep -oE '[0-9A-F]{8}-([0-9A-F]{4}-){3}[0-9A-F]{12}' || true)}
+  udid=${VISUAL_DEVICE:-}
+  if [ -z "$udid" ]; then
+    # An iPhone simulator that already has Expo Go; the last one listed otherwise. (A shut-down device cannot be asked
+    # with simctl, so look for the app in its data folder.)
+    for u in $(xcrun simctl list devices available | grep 'iPhone' | grep -oE '[0-9A-F]{8}-([0-9A-F]{4}-){3}[0-9A-F]{12}'); do
+      fallback=$u
+      if grep -qs host.exp.Exponent "$HOME/Library/Developer/CoreSimulator/Devices/$u/data/Containers/Bundle/Application/"*/*.app/Info.plist; then
+        udid=$u; break
+      fi
+    done
+    udid=${udid:-${fallback:-}}
+  fi
   [ -n "$udid" ] || die "no iPhone simulator available (set VISUAL_DEVICE to a simulator id)"
   xcrun simctl boot "$udid"
-  open -a Simulator || true
+  # Newer Xcode shows simulators in "Device Hub" instead of "Simulator".
+  open -a Simulator 2>/dev/null || open -a "Device Hub" 2>/dev/null || true
   xcrun simctl bootstatus "$udid" -b >/dev/null
 fi
 xcrun simctl get_app_container booted host.exp.Exponent >/dev/null 2>&1 \
-  || die "Expo Go is not installed in the booted simulator (npx expo start, then press i, installs it)"
+  || die "Expo Go is not installed in the booted simulator. Shut it down (xcrun simctl shutdown all) so the script can pick one that has it, set VISUAL_DEVICE to one, or install it (npx expo start, then press i)"
 
 orig=$(xcrun simctl ui booted appearance 2>/dev/null || echo light)
 log=$(mktemp "${TMPDIR:-/tmp}/visual-metro.XXXXXX")
