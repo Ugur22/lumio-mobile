@@ -41,7 +41,7 @@ EOF
 - One component per file, PascalCase. Files in `src/app` only compose components and handle navigation.
 - Keep logic out of components: pure logic in `src/lib` with a `.test.ts` next to it, hooks in `src/hooks`, shared state in `src/store`.
 - Style with NativeWind classes and the theme tokens from `tailwind.config.js` (`bg`, `panel`, `text`, `muted`, `accent`, …), which match the web app's names. No hardcoded colors and no `StyleSheet.create`, so light and dark mode keep working.
-- Past about 400 lines, split a component before adding more (a guideline, not checked here).
+- A `.ts`/`.tsx` file over 400 lines (`api.gen.ts` excluded) fails `npm run check`: split by responsibility before adding more. `scripts/size-baseline.txt` may only shrink; never raise an entry, lower it with `scripts/check-file-size.sh --update` after a split. `scripts/test-baseline.txt` holds the Vitest test count, which may not drop: after an intentional removal run `scripts/check-test-count.sh --update` and have the change reviewed.
 
 ## Expo has changed — do not trust your training data
 

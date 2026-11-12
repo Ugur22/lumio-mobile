@@ -29,6 +29,8 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run lint
+      - run: npm run check:size
+      - run: npm run check:tests
       # Needs the network: compares src/api/api.gen.ts with what the backend's openapi.json on main generates.
       - run: npm run check:api
 
