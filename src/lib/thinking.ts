@@ -39,3 +39,48 @@ export const labelOf = (phase: Exclude<Phase, "writing">) => LABEL[phase];
 
 export const counterText = (elapsedMs: number) =>
   elapsedMs >= COUNTER_AFTER_MS ? `· ${Math.floor(elapsedMs / 1000)}s` : "";
+
+// Hosts of the pages that were read, as plain text for chips. Page URLs come from the web, so only http(s) ones count.
+export function sourceDomains(sources: readonly SourceRef[]): string[] {
+  const hosts = new Set<string>();
+  for (const { url } of sources) {
+    if (!/^https?:\/\//i.test(url)) continue;
+    try {
+      hosts.add(new URL(url).host.replace(/^www\./, ""));
+    } catch {
+      // A malformed URL has no domain to show.
+    }
+  }
+  return [...hosts];
+}
+
+// How the orb moves in each phase, named after the web app's orb states so the two clients read alike.
+export type OrbState = "connecting" | "breathing" | "solving" | "searching" | "working";
+
+// `period`: ms for one in-out beat; `low`/`high`: the core's scale range; `halo`: a ring that spreads and fades.
+export interface OrbMotion {
+  period: number;
+  low: number;
+  high: number;
+  halo: boolean;
+}
+
+const ORB: Record<Exclude<Phase, "writing">, OrbState> = {
+  waiting: "connecting",
+  still: "breathing",
+  thinking: "solving",
+  searching: "searching",
+  reading: "working",
+};
+
+export const orbStateOf = (phase: Exclude<Phase, "writing">): OrbState => ORB[phase];
+
+const MOTION: Record<OrbState, OrbMotion> = {
+  connecting: { period: 1200, low: 0.85, high: 1, halo: true },
+  breathing: { period: 2600, low: 0.8, high: 1, halo: false },
+  solving: { period: 800, low: 0.75, high: 1.05, halo: false },
+  searching: { period: 1100, low: 0.9, high: 1, halo: true },
+  working: { period: 600, low: 0.8, high: 1, halo: false },
+};
+
+export const orbMotion = (state: OrbState): OrbMotion => MOTION[state];

@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { AccessibilityInfo, Animated, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
-import { counterText, labelOf, phaseOf } from "@/lib/thinking";
+import { counterText, labelOf, orbStateOf, phaseOf, sourceDomains } from "@/lib/thinking";
 import { usePalette } from "@/lib/theme";
 import { useStream } from "@/store/stream";
+
+import { ThinkingOrb } from "./ThinkingOrb";
 
 const TICK_MS = 1000;
 
@@ -17,30 +19,7 @@ function useElapsed(startedAt: number): number {
   return Math.max(0, now - startedAt);
 }
 
-function PulseDot({ color }: { color: string }) {
-  const [pulse] = useState(() => new Animated.Value(1));
-  const [reduceMotion, setReduceMotion] = useState(false);
-  useEffect(() => {
-    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
-    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduceMotion);
-    return () => sub.remove();
-  }, []);
-  useEffect(() => {
-    if (reduceMotion) {
-      pulse.setValue(1);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 0.3, duration: 800, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 800, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse, reduceMotion]);
-  return <Animated.View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color, opacity: pulse }} />;
-}
+const chip = "max-w-full rounded-full border border-border bg-panel px-2.5 py-0.5";
 
 // The status line while no reply text has arrived: what the model is doing, and how long it has been. Only the label
 // is announced; the counter ticks every second and stays out of the accessibility tree.
@@ -55,24 +34,37 @@ export function ThinkingStatus() {
   if (phase === "writing") return null;
   const label = labelOf(phase);
   const counter = counterText(elapsedMs);
+  // Searching shows the query; reading shows the hosts. Hosts are only parsed in the phase that shows them.
+  const chips = phase === "searching" ? [query?.trim() ?? ""].filter(Boolean) : phase === "reading" ? sourceDomains(sources) : [];
 
   return (
     // One line tall, like the reply text it makes way for, so the row does not jump when text starts.
-    <View className="min-h-7 flex-row items-center gap-2" accessibilityLiveRegion="polite">
-      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <PulseDot color={palette.accent} />
-      </View>
-      <Text accessibilityRole="text" accessibilityLabel={label} style={{ color: palette.muted, fontSize: 15 }}>
-        {label}
-      </Text>
-      {counter ? (
-        <Text
-          accessibilityElementsHidden
-          importantForAccessibility="no"
-          style={{ color: palette.muted, fontSize: 13, fontVariant: ["tabular-nums"] }}
-        >
-          {counter}
+    <View>
+      <View className="min-h-7 flex-row items-center gap-2" accessibilityLiveRegion="polite">
+        <ThinkingOrb state={orbStateOf(phase)} color={palette.accent} />
+        <Text accessibilityRole="text" accessibilityLabel={label} style={{ color: palette.muted, fontSize: 15 }}>
+          {label}
         </Text>
+        {counter ? (
+          <Text
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+            style={{ color: palette.muted, fontSize: 13, fontVariant: ["tabular-nums"] }}
+          >
+            {counter}
+          </Text>
+        ) : null}
+      </View>
+      {chips.length > 0 ? (
+        <View className="mt-1 flex-row flex-wrap gap-1.5" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {chips.map((c) => (
+            <View key={c} className={chip}>
+              <Text numberOfLines={1} style={{ color: phase === "searching" ? palette.text : palette.muted, fontSize: 13 }}>
+                {c}
+              </Text>
+            </View>
+          ))}
+        </View>
       ) : null}
     </View>
   );
