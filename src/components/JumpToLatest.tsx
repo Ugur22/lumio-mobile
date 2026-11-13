@@ -1,7 +1,8 @@
 import { ArrowDown } from "lucide-react-native";
-import { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Pressable } from "react-native";
+import { useEffect, useState } from "react";
+import { Animated, Pressable } from "react-native";
 
+import { useReduceMotion } from "@/hooks/useReduceMotion";
 import { usePalette } from "@/lib/theme";
 
 interface Props {
@@ -17,17 +18,11 @@ export function JumpToLatest({ visible, onPress }: Props) {
   const [opacity] = useState(() => new Animated.Value(0));
   // Stays true until the fade-out has finished. Only set from animation callbacks, never synchronously in an effect.
   const [mounted, setMounted] = useState(false);
-  const reduceMotion = useRef(false);
-
-  useEffect(() => {
-    void AccessibilityInfo.isReduceMotionEnabled().then((v) => (reduceMotion.current = v));
-    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", (v) => (reduceMotion.current = v));
-    return () => sub.remove();
-  }, []);
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
     const to = visible ? 1 : 0;
-    if (reduceMotion.current) {
+    if (reduceMotion) {
       opacity.setValue(to);
       queueMicrotask(() => setMounted(visible));
       return;
@@ -37,7 +32,7 @@ export function JumpToLatest({ visible, onPress }: Props) {
       if (finished) setMounted(visible);
     });
     return () => anim.stop();
-  }, [visible, opacity]);
+  }, [visible, opacity, reduceMotion]);
 
   if (!visible && !mounted) return null;
   return (

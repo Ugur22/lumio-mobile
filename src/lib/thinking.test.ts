@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { SourceRef } from "@/api/types";
 
-import { counterText, labelOf, phaseOf, type PhaseInput } from "./thinking";
+import { counterText, labelOf, orbStateOf, phaseOf, sourceDomains, type PhaseInput } from "./thinking";
 
 const base: PhaseInput = { elapsedMs: 0, reasoningSeen: false, query: null, sources: [], hasText: false };
 const src = { url: "https://a.test", title: "A" } as unknown as SourceRef;
@@ -42,5 +42,27 @@ describe("labels and counter", () => {
     expect(counterText(2999)).toBe("");
     expect(counterText(3000)).toBe("· 3s");
     expect(counterText(12900)).toBe("· 12s");
+  });
+});
+
+describe("orbStateOf", () => {
+  it("gives each visible phase its own orb state", () => {
+    expect(orbStateOf("waiting")).toBe("connecting");
+    expect(orbStateOf("still")).toBe("breathing");
+    expect(orbStateOf("thinking")).toBe("solving");
+    expect(orbStateOf("searching")).toBe("searching");
+    expect(orbStateOf("reading")).toBe("working");
+  });
+});
+
+describe("sourceDomains", () => {
+  const at = (url: string) => ({ url, title: "t" }) as unknown as SourceRef;
+
+  it("lists each host once, without www", () => {
+    expect(sourceDomains([at("https://www.a.test/x"), at("https://a.test/y"), at("http://b.test")])).toEqual(["a.test", "b.test"]);
+  });
+
+  it("skips non-http and malformed URLs", () => {
+    expect(sourceDomains([at("javascript:alert(1)"), at("https://"), at("not a url")])).toEqual([]);
   });
 });

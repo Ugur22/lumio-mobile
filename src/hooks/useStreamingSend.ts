@@ -96,9 +96,9 @@ export function useStreamingSend({ onTrialRefused }: Options = {}) {
           },
           onError: (err) => {
             endStream();
-            // A user-initiated stop that left nothing to show just ends the turn; no error flash.
+            // Stopping before any text arrived is the user's choice, not a failure: say so calmly.
             if (err instanceof ReplyStopped) {
-              useStream.getState().clear();
+              useStream.getState().fail("Stopped. Nothing was generated.", true);
               return;
             }
             const trial = trialFailure(err);

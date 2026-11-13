@@ -2,11 +2,12 @@ import { MarkdownStream, type RenderRules } from "@ronradtke/react-native-markdo
 import { createMarkdownIt } from "@ronradtke/react-native-markdown-display";
 import { Sparkles } from "lucide-react-native";
 import { memo, useEffect, useMemo, useState } from "react";
-import { AccessibilityInfo, Animated, Text, View, useColorScheme, useWindowDimensions } from "react-native";
+import { Animated, Text, View, useColorScheme, useWindowDimensions } from "react-native";
 import RenderHTML from "react-native-render-html";
 
 import { imageSource } from "@/api/client";
 import type { ImageRef } from "@/api/types";
+import { useReduceMotion } from "@/hooks/useReduceMotion";
 import { splitReply, type Illustration } from "@/lib/illustrations";
 import { markdownStyles } from "@/lib/markdownStyles";
 import { lumioMarkup } from "@/lib/markup/plugin";
@@ -147,12 +148,7 @@ const Text_ = memo(function TextParts({ text, streaming }: { text: string; strea
 // A picture the model asked for that has not been generated yet. Same size as AttachedImage so nothing jumps.
 function Illustrating({ palette }: { palette: Palette }) {
   const [pulse] = useState(() => new Animated.Value(0.5));
-  const [reduceMotion, setReduceMotion] = useState(false);
-  useEffect(() => {
-    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
-    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduceMotion);
-    return () => sub.remove();
-  }, []);
+  const reduceMotion = useReduceMotion();
   useEffect(() => {
     if (reduceMotion) {
       pulse.setValue(0.8);
