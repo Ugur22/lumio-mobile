@@ -39,8 +39,8 @@ export function ThinkingStatus() {
 
   return (
     // One line tall, like the reply text it makes way for, so the row does not jump when text starts.
-    <View accessibilityLiveRegion="polite">
-      <View className="min-h-7 flex-row items-center gap-2">
+    <View>
+      <View className="min-h-7 flex-row items-center gap-2" accessibilityLiveRegion="polite">
         <ThinkingOrb state={orbStateOf(phase)} color={palette.accent} />
         <Text accessibilityRole="text" accessibilityLabel={label} style={{ color: palette.muted, fontSize: 15 }}>
           {label}
@@ -56,7 +56,7 @@ export function ThinkingStatus() {
         ) : null}
       </View>
       {chips.length > 0 ? (
-        <View className="mt-1 flex-row flex-wrap gap-1.5">
+        <View className="mt-1 flex-row flex-wrap gap-1.5" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           {chips.map((c) => (
             <View key={c} className={chip}>
               <Text numberOfLines={1} style={{ color: phase === "searching" ? palette.text : palette.muted, fontSize: 13 }}>
