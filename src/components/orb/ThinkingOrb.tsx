@@ -1,5 +1,5 @@
 import { Canvas, PaintStyle, Picture, Skia, createPicture, type SkPicture } from "@shopify/react-native-skia";
-import { useEffect, useMemo } from "react";
+import { memo, useEffect, useMemo } from "react";
 import { View, useColorScheme } from "react-native";
 import { useSharedValue } from "react-native-reanimated";
 import { MODE_FRAMES, resolvePreset, type OrbSize, type OrbState } from "thinking-orbs/engine";
@@ -9,10 +9,10 @@ import { useReduceMotion } from "@/hooks/useReduceMotion";
 import { nowSeconds, useAppActive } from "./platform";
 
 // Adapted from thinking-orbs-native (MIT, see ./LICENSE), commit 387b049 of Jakubantalik/Libraries.dev. The geometry
-// comes from the same engine as the web app, so this file only turns a frame's dots into Skia draw calls. Changes: the
-// upstream theme.ts, types.ts and index.ts are not copied (the engine supplies the types); the
-// theme follows the app's colour scheme and reduce motion comes from the shared hook; the label and style props are gone
-// because the caller hides the orb from assistive tech.
+// comes from the same engine as the web app, so this file only turns a frame's dots into Skia draw calls.
+// Changes: upstream's theme.ts, types.ts and index.ts are not copied (the engine supplies the types); the theme follows
+// the app's colour scheme, reduce motion comes from the shared hook, and the label and style props are gone because the
+// caller hides the orb from assistive tech. When the port is published to npm, delete this folder and depend on it.
 
 // The still frame reduce-motion users see, the same instant as the web.
 const REDUCED_MOTION_T = 0.6;
@@ -25,7 +25,8 @@ interface Props {
   displaySize?: number;
 }
 
-export function ThinkingOrb({ state, size = 64, displaySize }: Props) {
+// Memoised because the status line around it re-renders every second for its counter.
+export const ThinkingOrb = memo(function ThinkingOrb({ state, size = 64, displaySize }: Props) {
   const dark = useColorScheme() === "dark";
   const reduced = useReduceMotion();
   const appActive = useAppActive();
@@ -49,6 +50,7 @@ export function ThinkingOrb({ state, size = 64, displaySize }: Props) {
     stroke.setAntiAlias(true);
     stroke.setStyle(PaintStyle.Stroke);
     const build = MODE_FRAMES[mode];
+    const bounds = Skia.XYWHRect(0, 0, box, box);
 
     const setInk = (paint: typeof fill, white: number, alpha: number) => {
       const w = Math.min(1, Math.max(0, white));
@@ -75,7 +77,7 @@ export function ThinkingOrb({ state, size = 64, displaySize }: Props) {
           setInk(fill, d.white, d.a ?? 1);
           canvas.drawCircle(d.x, d.y, d.r, fill);
         }
-      }, Skia.XYWHRect(0, 0, box, box));
+      }, bounds);
     };
 
     if (reduced) {
@@ -106,4 +108,4 @@ export function ThinkingOrb({ state, size = 64, displaySize }: Props) {
       </Canvas>
     </View>
   );
-}
+});

@@ -43,7 +43,7 @@ export function ThinkingStatus() {
   return (
     // The orb sets the row height (ORB_DP), so the reply text may shift up a little when it takes over.
     <View>
-      <View className="min-h-10 flex-row items-center gap-2" accessibilityLiveRegion="polite">
+      <View className="flex-row items-center gap-2" style={{ minHeight: ORB_DP }} accessibilityLiveRegion="polite">
         <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <ThinkingOrb state={orbStateOf(phase)} size={64} displaySize={ORB_DP} />
         </View>
