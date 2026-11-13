@@ -41,7 +41,7 @@ export function ThinkingStatus() {
   const chips = phase === "searching" ? [query?.trim() ?? ""].filter(Boolean) : phase === "reading" ? sourceDomains(sources) : [];
 
   return (
-    // One line tall, like the reply text it makes way for, so the row does not jump when text starts.
+    // The orb sets the row height (ORB_DP), so the reply text may shift up a little when it takes over.
     <View>
       <View className="min-h-10 flex-row items-center gap-2" accessibilityLiveRegion="polite">
         <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">

@@ -10,6 +10,7 @@ import { nowSeconds, useAppActive } from "./platform";
 
 // Adapted from thinking-orbs-native (MIT, see ./LICENSE), commit 387b049 of Jakubantalik/Libraries.dev. The geometry
 // comes from the same engine as the web app, so this file only turns a frame's dots into Skia draw calls. Changes: the
+// upstream theme.ts, types.ts and index.ts are not copied (the engine supplies the types); the
 // theme follows the app's colour scheme and reduce motion comes from the shared hook; the label and style props are gone
 // because the caller hides the orb from assistive tech.
 
