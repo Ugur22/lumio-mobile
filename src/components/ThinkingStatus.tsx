@@ -5,7 +5,7 @@ import { counterText, labelOf, orbStateOf, phaseOf, sourceDomains } from "@/lib/
 import { usePalette } from "@/lib/theme";
 import { useStream } from "@/store/stream";
 
-import { ThinkingOrb } from "./ThinkingOrb";
+import { ThinkingOrb } from "./orb/ThinkingOrb";
 
 const TICK_MS = 1000;
 
@@ -18,6 +18,9 @@ function useElapsed(startedAt: number): number {
   }, [startedAt]);
   return Math.max(0, now - startedAt);
 }
+
+// The tuned 64 design shown smaller; one line of text is 28 dp, so the row grows a little while the orb is up.
+const ORB_DP = 40;
 
 const chip = "max-w-full rounded-full border border-border bg-panel px-2.5 py-0.5";
 
@@ -40,8 +43,10 @@ export function ThinkingStatus() {
   return (
     // One line tall, like the reply text it makes way for, so the row does not jump when text starts.
     <View>
-      <View className="min-h-7 flex-row items-center gap-2" accessibilityLiveRegion="polite">
-        <ThinkingOrb state={orbStateOf(phase)} color={palette.accent} />
+      <View className="min-h-10 flex-row items-center gap-2" accessibilityLiveRegion="polite">
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <ThinkingOrb state={orbStateOf(phase)} size={64} displaySize={ORB_DP} />
+        </View>
         <Text accessibilityRole="text" accessibilityLabel={label} style={{ color: palette.muted, fontSize: 15 }}>
           {label}
         </Text>
